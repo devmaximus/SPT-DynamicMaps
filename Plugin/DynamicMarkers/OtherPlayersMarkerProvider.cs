@@ -14,7 +14,6 @@ namespace DynamicMaps.DynamicMarkers
     public class OtherPlayersMarkerProvider : IDynamicMarkerProvider
     {
         private const string _arrowImagePath = "Markers/arrow.png";
-        private const string _starImagePath = "Markers/star.png";
         
         private const string _friendlyPlayerCategory = "Friendly Player";
         private const string _friendlyPlayerImagePath = _arrowImagePath;
@@ -27,7 +26,10 @@ namespace DynamicMaps.DynamicMarkers
         private const string _scavImagePath = _arrowImagePath;
 
         private const string _bossCategory = "Boss";
-        private const string _bossImagePath = _starImagePath;
+        private const string _bossImagePath = _arrowImagePath;
+
+        private const string _bossSupportCategory = "Boss Support";
+        private const string _bossSupportImagePath = _arrowImagePath;
         
         private bool _showFriendlyPlayers = true;
         public bool ShowFriendlyPlayers
@@ -169,11 +171,11 @@ namespace DynamicMaps.DynamicMarkers
                 return;
             }
             
-            // add all players that have spawned already in raid
+            // add/reclassify all players that have spawned already in raid
             var gameWorld = Singleton<GameWorld>.Instance;
             foreach (var player in gameWorld.AllAlivePlayersList)
             {
-                if (player.IsYourPlayer || _playerMarkers.ContainsKey(player))
+                if (player.IsYourPlayer)
                 {
                     continue;
                 }
@@ -226,54 +228,89 @@ namespace DynamicMaps.DynamicMarkers
                 return;
             }
 
-            if (_lastMapView is null || player.IsBTRShooter() || _playerMarkers.ContainsKey(player))
+            if (_lastMapView is null || player.IsBTRShooter())
             {
                 return;
             }
-            
-            // set category and color
-            var category = string.Empty;
-            var imagePath = string.Empty;
-            var color = Color.clear;
-            
-            var intelLevel = GameUtils.GetIntelLevel();
-            
+
+            if (!TryClassifyMarker(player, out var category, out var imagePath, out var color))
+            {
+                return;
+            }
+
+            if (!ShouldShowCategory(category))
+            {
+                // Drop stale marker if this bot was previously shown under another category.
+                TryRemoveMarker(player);
+                return;
+            }
+
+            // Role/Side can finalize after OnPersonAdd — replace misclassified markers.
+            if (_playerMarkers.TryGetValue(player, out var existing)
+                && existing.Category == category
+                && existing.Color == color)
+            {
+                return;
+            }
+
+            TryRemoveMarker(player);
+
+            var marker = _lastMapView.AddPlayerMarker(player, category, color, imagePath);
+            _playerMarkers[player] = marker;
+        }
+
+        private static bool TryClassifyMarker(Player player, out string category, out string imagePath, out Color color)
+        {
+            category = string.Empty;
+            imagePath = string.Empty;
+            color = Color.clear;
+
+            var intelLevel = GameUtils.GetIntelLevelOrZero();
+
             if (player.IsGroupedWithMainPlayer() && Settings.ShowFriendlyIntelLevel.Value <= intelLevel)
             {
                 category = _friendlyPlayerCategory;
                 imagePath = _friendlyPlayerImagePath;
                 color = _friendlyPlayerColor;
+                return true;
             }
-            else if (player.IsTrackedBoss() && Settings.ShowBossIntelLevel.Value <= intelLevel)
+
+            if (player.IsMainBoss() && Settings.ShowBossIntelLevel.Value <= intelLevel)
             {
                 category = _bossCategory;
                 imagePath = _bossImagePath;
                 color = Settings.BossColor.Value;
+                return true;
             }
-            else if (player.IsPMC() && Settings.ShowPmcIntelLevel.Value <= intelLevel)
+
+            if (player.IsBossSupport() && Settings.ShowBossIntelLevel.Value <= intelLevel)
+            {
+                category = _bossSupportCategory;
+                imagePath = _bossSupportImagePath;
+                color = Settings.BossSupportColor.Value;
+                return true;
+            }
+
+            if (player.IsPMC() && Settings.ShowPmcIntelLevel.Value <= intelLevel)
             {
                 category = _enemyPlayerCategory;
                 imagePath = _enemyPlayerImagePath;
-                color = player.Side == EPlayerSide.Bear
-                    ? Settings.PmcBearColor.Value
-                    : Settings.PmcUsecColor.Value;
-                    
+                var isBear = player.Side == EPlayerSide.Bear
+                    || player.Profile.Side == EPlayerSide.Bear
+                    || player.Profile.Info.Settings?.Role == WildSpawnType.pmcBEAR;
+                color = isBear ? Settings.PmcBearColor.Value : Settings.PmcUsecColor.Value;
+                return true;
             }
-            else if (player.IsScav() && Settings.ShowScavIntelLevel.Value <= intelLevel)
+
+            if (player.IsScav() && Settings.ShowScavIntelLevel.Value <= intelLevel)
             {
                 category = _scavCategory;
                 imagePath = _scavImagePath;
                 color = Settings.ScavColor.Value;
+                return true;
             }
 
-            if (!ShouldShowCategory(category))
-            {
-                return;
-            }
-
-            // try adding marker
-            var marker = _lastMapView.AddPlayerMarker(player, category, color, imagePath);
-            _playerMarkers[player] = marker;
+            return false;
         }
 
         private void RemoveDisabledMarkers()
@@ -308,6 +345,7 @@ namespace DynamicMaps.DynamicMarkers
                 case _enemyPlayerCategory:
                     return _showEnemyPlayers;
                 case _bossCategory:
+                case _bossSupportCategory:
                     return _showBosses;
                 case _scavCategory:
                     return _showScavs;

@@ -85,6 +85,10 @@ namespace DynamicMaps.UI
         private float _miniMapUpdateInterval = 0.033f;
         private float _miniMapUpdateTimer = 0f;
 
+        // Re-run PMC/scav classification while map is up (Role/Side can finalize after spawn).
+        private float _otherPlayersReclassifyInterval = 2f;
+        private float _otherPlayersReclassifyTimer = 0f;
+
         // config
         private bool _autoCenterOnPlayerMarker = true;
         private bool _autoSelectLevel = true;
@@ -233,6 +237,17 @@ namespace DynamicMaps.UI
             }
             
             OnScrollZoomUpdate();
+
+            // Role/Side for AI PMCs can finalize after OnPersonAdd — refresh classifications while map is visible.
+            if (GameUtils.IsInRaid() && (IsShowingMapScreen || _isPeeking || _showingMiniMap))
+            {
+                _otherPlayersReclassifyTimer += Time.unscaledDeltaTime;
+                if (_otherPlayersReclassifyTimer >= _otherPlayersReclassifyInterval)
+                {
+                    _otherPlayersReclassifyTimer = 0f;
+                    GetMarkerProvider<OtherPlayersMarkerProvider>()?.RefreshMarkers();
+                }
+            }
 
             // change level hotkeys
             if (!_showingMiniMap)
