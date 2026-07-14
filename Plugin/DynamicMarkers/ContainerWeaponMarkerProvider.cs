@@ -20,7 +20,7 @@ namespace DynamicMaps.DynamicMarkers
     public class ContainerWeaponMarkerProvider : IDynamicMarkerProvider
     {
         private MapView _lastMapView;
-        private readonly Dictionary<LootableContainer, MapMarker> _markers = [];
+        private readonly Dictionary<LootableContainer, DynamicMaps.UI.Components.MapMarker> _markers = [];
         private readonly List<Item> _scanBuffer = new(64);
 
         public void OnShowInRaid(MapView map)
