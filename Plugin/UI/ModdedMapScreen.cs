@@ -959,6 +959,7 @@ namespace DynamicMaps.UI
             AddRemoveMarkerProvider<AirdropMarkerProvider>(Settings.ShowAirdropsInRaid.Value);
             AddRemoveMarkerProvider<LootMarkerProvider>(Settings.ShowWishListItemsInRaid.Value);
             AddRemoveMarkerProvider<HiddenStashMarkerProvider>(Settings.ShowHiddenStashesInRaid.Value);
+            AddRemoveMarkerProvider<ContainerWeaponMarkerProvider>(Settings.ShowContainerWeaponsInRaid.Value);
             AddRemoveMarkerProvider<TransitMarkerProvider>(Settings.ShowTransitPointsInRaid.Value);
             AddRemoveMarkerProvider<SecretMarkerProvider>(Settings.ShowSecretPointsInRaid.Value);
             
@@ -977,6 +978,12 @@ namespace DynamicMaps.UI
             if (Settings.ShowHiddenStashesInRaid.Value)
             {
                 GetMarkerProvider<HiddenStashMarkerProvider>()
+                    .RefreshMarkers();
+            }
+
+            if (Settings.ShowContainerWeaponsInRaid.Value)
+            {
+                GetMarkerProvider<ContainerWeaponMarkerProvider>()
                     .RefreshMarkers();
             }
 

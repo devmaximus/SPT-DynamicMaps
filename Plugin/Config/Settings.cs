@@ -51,6 +51,7 @@ namespace DynamicMaps.Config
         public static ConfigEntry<bool> ShowBTRInRaid;
         public static ConfigEntry<bool> ShowAirdropsInRaid;
         public static ConfigEntry<bool> ShowHiddenStashesInRaid;
+        public static ConfigEntry<bool> ShowContainerWeaponsInRaid;
         public static ConfigEntry<bool> ShowFriendlyCorpsesInRaid;
         public static ConfigEntry<bool> ShowKilledCorpsesInRaid;
         public static ConfigEntry<bool> ShowFriendlyKilledCorpsesInRaid;
@@ -71,6 +72,7 @@ namespace DynamicMaps.Config
         public static ConfigEntry<int> ShowAirdropIntelLevel;
         public static ConfigEntry<int> ShowWishListItemsIntelLevel;
         public static ConfigEntry<int> ShowHiddenStashIntelLevel;
+        public static ConfigEntry<int> ShowContainerWeaponIntelLevel;
         
         #endregion
         
@@ -128,6 +130,7 @@ namespace DynamicMaps.Config
         public static ConfigEntry<Color> TransPointColor;
         public static ConfigEntry<Color> SecretPointColor;
         public static ConfigEntry<Color> HiddenStashColor;
+        public static ConfigEntry<Color> ContainerWeaponColor;
         
         #endregion
         
@@ -419,6 +422,15 @@ namespace DynamicMaps.Config
                     null,
                     new ConfigurationManagerAttributes { })));
 
+            ConfigEntries.Add(ShowContainerWeaponsInRaid = config.Bind(
+                DynamicMarkerTitle,
+                "Show Container Weapons In Raid",
+                false,
+                new ConfigDescription(
+                    "If lootable containers holding firearms should be marked in raid (scan on map open)",
+                    null,
+                    new ConfigurationManagerAttributes { })));
+
             ConfigEntries.Add(ShowFriendlyCorpsesInRaid = config.Bind(
                 DynamicMarkerTitle,
                 "Show Friendly Corpses In Raid",
@@ -546,6 +558,15 @@ namespace DynamicMaps.Config
                 0,
                 new ConfigDescription(
                     "If intel level is at or above this value it will show hidden stashes",
+                    new AcceptableValueRange<int>(0, 3),
+                    new ConfigurationManagerAttributes { })));
+
+            ConfigEntries.Add(ShowContainerWeaponIntelLevel = config.Bind(
+                ProgressionTitle,
+                "Intel level required to show container weapons",
+                0,
+                new ConfigDescription(
+                    "If intel level is at or above this value it will show containers with firearms",
                     new AcceptableValueRange<int>(0, 3),
                     new ConfigurationManagerAttributes { })));
 
@@ -916,6 +937,15 @@ namespace DynamicMaps.Config
                 MarkerColors,
                 "Hidden stash marker color",
                 new Color(1f, 0.92f, 0.01f),
+                new ConfigDescription(
+                    "Color of the marker",
+                    null,
+                    new ConfigurationManagerAttributes { })));
+
+            ConfigEntries.Add(ContainerWeaponColor = config.Bind(
+                MarkerColors,
+                "Container weapon marker color",
+                new Color(1f, 0.55f, 0.0f),
                 new ConfigDescription(
                     "Color of the marker",
                     null,
