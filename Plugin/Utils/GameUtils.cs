@@ -30,6 +30,7 @@ namespace DynamicMaps.Utils
         public static Profile PlayerProfile => _sessionProfileProperty.GetValue(Session) as Profile;
         //
 
+        // Named bosses / boss-role events (red arrow on map).
         private static HashSet<WildSpawnType> _trackedBosses = new HashSet<WildSpawnType>
         {
             WildSpawnType.bossBoar,             // Kaban
@@ -37,22 +38,47 @@ namespace DynamicMaps.Utils
             WildSpawnType.bossGluhar,           // Glukhar
             WildSpawnType.bossKilla,
             WildSpawnType.bossKnight,
-            WildSpawnType.followerBigPipe,
-            WildSpawnType.followerBirdEye,
             WildSpawnType.bossKolontay,
             WildSpawnType.bossKojaniy,          // Shturman
             WildSpawnType.bossSanitar,
             WildSpawnType.bossTagilla,
             WildSpawnType.bossPartisan,
             WildSpawnType.bossZryachiy,
+            WildSpawnType.bossBoarSniper,
             WildSpawnType.gifter,               // Santa
             WildSpawnType.arenaFighterEvent,    // Blood Hounds
             WildSpawnType.sectantPriest,        // Cultist Priest
             WildSpawnType.bossTagillaAgro,      // Tagilla Labyrinth
             WildSpawnType.bossKillaAgro,        // Killa Labyrinth
-            WildSpawnType.tagillaHelperAgro,    // Tagilla Helper Labyrinth
             (WildSpawnType) 199,                // Legion
             (WildSpawnType) 801,                // Punisher
+        };
+
+        // Boss guards / goons / helpers (red-orange arrow on map).
+        private static HashSet<WildSpawnType> _trackedBossSupports = new HashSet<WildSpawnType>
+        {
+            WildSpawnType.followerTest,
+            WildSpawnType.followerBully,
+            WildSpawnType.followerKojaniy,
+            WildSpawnType.followerGluharAssault,
+            WildSpawnType.followerGluharSecurity,
+            WildSpawnType.followerGluharScout,
+            WildSpawnType.followerGluharSnipe,
+            WildSpawnType.followerSanitar,
+            WildSpawnType.followerTagilla,
+            WildSpawnType.followerBigPipe,
+            WildSpawnType.followerBirdEye,
+            WildSpawnType.followerZryachiy,
+            WildSpawnType.followerBoar,
+            WildSpawnType.followerBoarClose1,
+            WildSpawnType.followerBoarClose2,
+            WildSpawnType.followerKolontayAssault,
+            WildSpawnType.followerKolontaySecurity,
+            WildSpawnType.sectantWarrior,
+            WildSpawnType.sectantPredvestnik,
+            WildSpawnType.sectantPrizrak,
+            WildSpawnType.sectantOni,
+            WildSpawnType.tagillaHelperAgro,    // Tagilla Helper Labyrinth
         };
 
         private static readonly Dictionary<string, string> MapLookUp = new()
@@ -140,19 +166,91 @@ namespace DynamicMaps.Utils
             return !string.IsNullOrEmpty(mainPlayerGroupId) && player.GroupId == mainPlayerGroupId;
         }
 
+        public static bool IsMainBoss(this IPlayer player)
+        {
+            return player.Profile.Side == EPlayerSide.Savage
+                && _trackedBosses.Contains(player.Profile.Info.Settings.Role);
+        }
+
+        public static bool IsBossSupport(this IPlayer player)
+        {
+            return player.Profile.Side == EPlayerSide.Savage
+                && _trackedBossSupports.Contains(player.Profile.Info.Settings.Role);
+        }
+
+        /// <summary>Boss or boss support (guards/goons). Used for corpse coloring and intel gating.</summary>
         public static bool IsTrackedBoss(this IPlayer player)
         {
-            return player.Profile.Side == EPlayerSide.Savage && _trackedBosses.Contains(player.Profile.Info.Settings.Role);
+            return player.IsMainBoss() || player.IsBossSupport();
         }
 
         public static bool IsPMC(this IPlayer player)
         {
-            return player.Profile.Side == EPlayerSide.Bear || player.Profile.Side == EPlayerSide.Usec;
+            if (player == null)
+            {
+                return false;
+            }
+
+            // Player.Side is what SPT / QuestingBots treat as authoritative for AI PMCs.
+            if (player.Side is EPlayerSide.Bear or EPlayerSide.Usec)
+            {
+                return true;
+            }
+
+            if (player.Profile?.Info == null)
+            {
+                return false;
+            }
+
+            if (player.Profile.Side is EPlayerSide.Bear or EPlayerSide.Usec)
+            {
+                return true;
+            }
+
+            // Boss-wave PMCs can still report Savage side briefly; role is definitive.
+            var settings = player.Profile.Info.Settings;
+            if (settings == null)
+            {
+                return false;
+            }
+
+            var role = settings.Role;
+            return role.IsPmcBot() || role == WildSpawnType.pmcBot;
         }
 
         public static bool IsScav(this IPlayer player)
         {
-            return player.Profile.Side == EPlayerSide.Savage;
+            // Do not classify until Settings exist — early OnPersonAdd can race role/side.
+            if (player?.Profile?.Info?.Settings == null)
+            {
+                return false;
+            }
+
+            // Savage side includes bosses and (sometimes) AI PMCs — exclude those so they
+            // don't get scav-colored markers.
+            if (player.Profile.Side != EPlayerSide.Savage && player.Side != EPlayerSide.Savage)
+            {
+                return false;
+            }
+
+            if (player.IsPMC() || player.IsTrackedBoss())
+            {
+                return false;
+            }
+
+            // If either side channel says PMC faction, never gray-scav them.
+            if (player.Side is EPlayerSide.Bear or EPlayerSide.Usec
+                || player.Profile.Side is EPlayerSide.Bear or EPlayerSide.Usec)
+            {
+                return false;
+            }
+
+            return player.Side == EPlayerSide.Savage || player.Profile.Side == EPlayerSide.Savage;
+        }
+
+        public static int GetIntelLevelOrZero()
+        {
+            return GetIntelLevel() ?? 0;
         }
 
         public static bool DidMainPlayerKill(this IPlayer player)
