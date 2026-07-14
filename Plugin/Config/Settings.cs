@@ -113,6 +113,7 @@ namespace DynamicMaps.Config
         public static ConfigEntry<Color> PmcUsecColor;
         public static ConfigEntry<Color> ScavColor;
         public static ConfigEntry<Color> BossColor;
+        public static ConfigEntry<Color> BossSupportColor;
         public static ConfigEntry<Color> AirdropColor;
         public static ConfigEntry<Color> BackpackColor;
         public static ConfigEntry<Color> LootItemColor;
@@ -295,27 +296,27 @@ namespace DynamicMaps.Config
             ConfigEntries.Add(ShowEnemyPlayerMarkersInRaid = config.Bind(
                 DynamicMarkerTitle,
                 "Show Enemy Player Markers",
-                false,
+                true,
                 new ConfigDescription(
-                    "If enemy player markers should be shown in-raid (generally for debug)",
+                    "If enemy PMC markers should be shown in-raid (dark-orange arrows by default)",
                     null,
                     new ConfigurationManagerAttributes { })));
 
             ConfigEntries.Add(ShowScavMarkersInRaid = config.Bind(
                 DynamicMarkerTitle,
                 "Show Scav Markers",
-                false,
+                true,
                 new ConfigDescription(
-                    "If enemy scav markers should be shown in-raid (generally for debug)",
+                    "If scav markers should be shown in-raid (gray arrow)",
                     null,
                     new ConfigurationManagerAttributes { })));
 
             ConfigEntries.Add(ShowBossMarkersInRaid = config.Bind(
                 DynamicMarkerTitle,
                 "Show Boss Markers",
-                false,
+                true,
                 new ConfigDescription(
-                    "If enemy boss markers should be shown in-raid",
+                    "If boss and boss-support markers should be shown in-raid (red / red-orange arrows)",
                     null,
                     new ConfigurationManagerAttributes { })));
 
@@ -645,9 +646,9 @@ namespace DynamicMaps.Config
             ConfigEntries.Add(MiniMapEnabled = config.Bind(
                 MiniMapTitle,
                 "Mini-map enabled",
-                true,
+                false,
                 new ConfigDescription(
-                    "Enable the mini-map",
+                    "Enable the always-on corner mini-map. Leave off to show the map only while holding Peek (default M).",
                     null,
                     new ConfigurationManagerAttributes { })));
             
@@ -747,39 +748,50 @@ namespace DynamicMaps.Config
                     null,
                     new ConfigurationManagerAttributes { })));
             
+            // DarkOrange (#FF8C00) — high contrast vs gray scavs on Interchange map art.
+            var pmcColor = new Color(1f, 0.549f, 0f);
             ConfigEntries.Add(PmcBearColor = config.Bind(
                 MarkerColors,
                 "Bear marker color",
-                new Color(1, 0, 0),
+                pmcColor,
                 new ConfigDescription(
-                    "Color of the marker",
+                    "Color of Bear PMC markers (arrow)",
                     null,
                     new ConfigurationManagerAttributes { })));
             
             ConfigEntries.Add(PmcUsecColor = config.Bind(
                 MarkerColors,
                 "Usec marker color",
-                new Color(1, 1, 0),
+                pmcColor,
                 new ConfigDescription(
-                    "Color of the marker",
+                    "Color of USEC PMC markers (arrow)",
                     null,
                     new ConfigurationManagerAttributes { })));
             
             ConfigEntries.Add(ScavColor = config.Bind(
                 MarkerColors,
                 "Scav marker color",
-                new Color(1, 0.45f, 0.007f),
+                new Color(0.55f, 0.55f, 0.55f),
                 new ConfigDescription(
-                    "Color of the marker",
+                    "Color of scav markers (gray arrow)",
                     null,
                     new ConfigurationManagerAttributes { })));
             
             ConfigEntries.Add(BossColor = config.Bind(
                 MarkerColors,
                 "Boss marker color",
-                new Color(1f, 0.45f, 0.007f),
+                new Color(1f, 0f, 0f),
                 new ConfigDescription(
-                    "Color of the marker",
+                    "Color of boss markers (red arrow)",
+                    null,
+                    new ConfigurationManagerAttributes { })));
+
+            ConfigEntries.Add(BossSupportColor = config.Bind(
+                MarkerColors,
+                "Boss support marker color",
+                new Color(1f, 0.35f, 0.1f),
+                new ConfigDescription(
+                    "Color of boss-support / guard markers (red-orange arrow)",
                     null,
                     new ConfigurationManagerAttributes { })));
             
