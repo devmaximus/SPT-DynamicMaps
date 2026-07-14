@@ -10,44 +10,44 @@ using EFT;
 using EFT.Interactive;
 using EFT.InventoryLogic;
 using EFT.UI.DragAndDrop;
+using UnityEngine;
 
 namespace DynamicMaps.DynamicMarkers
 {
     /// <summary>
-    /// Marks LootableContainers whose in-memory inventory contains at least one firearm (Weapon).
-    /// Scans on map show — loot is populated before UI can open (see investigate HANDOFF).
+    /// Marks any LootableContainer (crates, stashes, etc.) whose inventory contains firearms and/or armor.
+    /// Single NonAlloc scan per container; weapon and armor markers are offset when both are shown.
     /// </summary>
     public class ContainerWeaponMarkerProvider : IDynamicMarkerProvider
     {
+        /// <summary>Map-plane offset (world X) so paired markers do not stack.</summary>
+        private const float MarkerPairOffset = 12f;
+
         private MapView _lastMapView;
-        private readonly Dictionary<LootableContainer, DynamicMaps.UI.Components.MapMarker> _markers = [];
+        private readonly Dictionary<LootableContainer, DynamicMaps.UI.Components.MapMarker> _weaponMarkers = [];
+        private readonly Dictionary<LootableContainer, DynamicMaps.UI.Components.MapMarker> _armorMarkers = [];
         private readonly List<Item> _scanBuffer = new(64);
 
         public void OnShowInRaid(MapView map)
         {
             _lastMapView = map;
-            IndexContainers(map);
+            IndexContainers();
         }
 
         public void OnHideInRaid(MapView map)
         {
-            // Keep markers; no event subscriptions in v1
         }
 
         public void OnRaidEnd(MapView map)
         {
-            TryRemoveMarkers();
+            TryRemoveAllMarkers();
         }
 
         public void OnMapChanged(MapView map, MapDef mapDef)
         {
             _lastMapView = map;
-
-            foreach (var container in _markers.Keys.ToList())
-            {
-                TryRemoveMarker(container);
-                TryAddMarker(container);
-            }
+            TryRemoveAllMarkers();
+            IndexContainers();
         }
 
         public void OnDisable(MapView map)
@@ -59,8 +59,8 @@ namespace DynamicMaps.DynamicMarkers
         {
             if (!GameUtils.IsInRaid() || _lastMapView == null) return;
 
-            TryRemoveMarkers();
-            IndexContainers(_lastMapView);
+            TryRemoveAllMarkers();
+            IndexContainers();
         }
 
         public void OnShowOutOfRaid(MapView map)
@@ -71,8 +71,12 @@ namespace DynamicMaps.DynamicMarkers
         {
         }
 
-        private void IndexContainers(MapView map)
+        private void IndexContainers()
         {
+            var wantWeapons = Settings.ShowContainerWeaponsInRaid.Value;
+            var wantArmor = Settings.ShowContainerArmorInRaid.Value;
+            if (!wantWeapons && !wantArmor) return;
+
             var gameWorld = Singleton<GameWorld>.Instance;
             if (gameWorld == null) return;
 
@@ -94,84 +98,145 @@ namespace DynamicMaps.DynamicMarkers
                 itemVisits += n;
                 if (n > maxItems) maxItems = n;
 
-                var weapon = FindFirstWeapon(_scanBuffer);
-                if (weapon == null) continue;
+                FindFirstWeaponAndArmor(_scanBuffer, out var weapon, out var armor);
 
-                TryAddMarker(container, weapon);
+                var addWeapon = wantWeapons && weapon != null;
+                var addArmor = wantArmor && armor != null;
+                if (!addWeapon && !addArmor) continue;
+
+                TryAddMarkers(container, addWeapon ? weapon : null, addArmor ? armor : null);
             }
 
             sw.Stop();
 #if DEBUG
             Plugin.Log.LogInfo(
-                $"[ContainerWeapon] indexed containers={containerCount} itemVisits={itemVisits} maxI={maxItems} markers={_markers.Count} ms={sw.ElapsedMilliseconds}");
+                $"[ContainerGear] containers={containerCount} itemVisits={itemVisits} maxI={maxItems} " +
+                $"weapons={_weaponMarkers.Count} armor={_armorMarkers.Count} ms={sw.ElapsedMilliseconds}");
 #endif
         }
 
-        private static Weapon FindFirstWeapon(List<Item> buffer)
+        private static void FindFirstWeaponAndArmor(List<Item> buffer, out Weapon weapon, out Item armor)
         {
+            weapon = null;
+            armor = null;
+
             for (var i = 0; i < buffer.Count; i++)
             {
-                if (buffer[i] is Weapon weapon)
+                var item = buffer[i];
+                if (weapon == null && item is Weapon w)
                 {
-                    return weapon;
+                    weapon = w;
+                }
+
+                if (armor == null && IsArmor(item))
+                {
+                    armor = item;
+                }
+
+                if (weapon != null && armor != null)
+                {
+                    return;
                 }
             }
-
-            return null;
         }
 
-        private void TryAddMarker(LootableContainer container)
+        private static bool IsArmor(Item item)
         {
-            _scanBuffer.Clear();
-            var root = container.ItemOwner?.RootItem;
-            if (root == null) return;
-
-            root.GetAllAssembledItemsNonAlloc(_scanBuffer);
-            var weapon = FindFirstWeapon(_scanBuffer);
-            if (weapon == null) return;
-
-            TryAddMarker(container, weapon);
+            return item is ArmorItemClass
+                || item is VestItemClass
+                || item is HeadwearItemClass;
         }
 
-        private void TryAddMarker(LootableContainer container, Weapon weapon)
+        private void TryAddMarkers(LootableContainer container, Weapon weapon, Item armor)
         {
             if (container == null || _lastMapView == null) return;
-            if (_markers.ContainsKey(container)) return;
-            if (Settings.ShowContainerWeaponIntelLevel.Value > GameUtils.GetIntelLevel()) return;
 
             var transform = container.transform;
             if (transform == null) return;
 
-            var itemType = ItemViewFactory.GetItemType(weapon.GetType());
+            var basePos = MathUtils.ConvertToMapPosition(transform);
+            var both = weapon != null && armor != null;
+
+            if (weapon != null
+                && !_weaponMarkers.ContainsKey(container)
+                && Settings.ShowContainerWeaponIntelLevel.Value <= GameUtils.GetIntelLevel())
+            {
+                var pos = both
+                    ? basePos + new Vector3(-MarkerPairOffset, 0f, 0f)
+                    : basePos;
+                _weaponMarkers[container] = AddContentMarker(
+                    container,
+                    weapon,
+                    "ContainerWeapon",
+                    Settings.ContainerWeaponColor.Value,
+                    pos);
+            }
+
+            if (armor != null
+                && !_armorMarkers.ContainsKey(container)
+                && Settings.ShowContainerArmorIntelLevel.Value <= GameUtils.GetIntelLevel())
+            {
+                var pos = both
+                    ? basePos + new Vector3(MarkerPairOffset, 0f, 0f)
+                    : basePos;
+                _armorMarkers[container] = AddContentMarker(
+                    container,
+                    armor,
+                    "ContainerArmor",
+                    Settings.ContainerArmorColor.Value,
+                    pos);
+            }
+        }
+
+        private DynamicMaps.UI.Components.MapMarker AddContentMarker(
+            LootableContainer container,
+            Item item,
+            string category,
+            Color color,
+            Vector3 mapPosition)
+        {
+            var itemType = ItemViewFactory.GetItemType(item.GetType());
             var itemSprite = EFTHardSettings.Instance.StaticIcons.ItemTypeSprites.GetValueOrDefault(itemType);
 
             var markerDef = new MapMarkerDef
             {
-                Category = "ContainerWeapon",
-                Color = Settings.ContainerWeaponColor.Value,
+                Category = category,
+                Color = color,
                 Sprite = itemSprite,
-                Position = MathUtils.ConvertToMapPosition(transform),
-                Text = weapon.TemplateId.LocalizedName()
+                Position = mapPosition,
+                Text = item.TemplateId.LocalizedName()
             };
 
-            var marker = _lastMapView.AddMapMarker(markerDef);
-            _markers[container] = marker;
+            return _lastMapView.AddMapMarker(markerDef);
         }
 
-        private void TryRemoveMarkers()
+        private void TryRemoveAllMarkers()
         {
-            foreach (var container in _markers.Keys.ToList())
+            foreach (var container in _weaponMarkers.Keys.ToList())
             {
-                TryRemoveMarker(container);
+                TryRemoveWeaponMarker(container);
+            }
+
+            foreach (var container in _armorMarkers.Keys.ToList())
+            {
+                TryRemoveArmorMarker(container);
             }
         }
 
-        private void TryRemoveMarker(LootableContainer container)
+        private void TryRemoveWeaponMarker(LootableContainer container)
         {
-            if (!_markers.TryGetValue(container, out var marker)) return;
+            if (!_weaponMarkers.TryGetValue(container, out var marker)) return;
 
             marker.ContainingMapView.RemoveMapMarker(marker);
-            _markers.Remove(container);
+            _weaponMarkers.Remove(container);
+        }
+
+        private void TryRemoveArmorMarker(LootableContainer container)
+        {
+            if (!_armorMarkers.TryGetValue(container, out var marker)) return;
+
+            marker.ContainingMapView.RemoveMapMarker(marker);
+            _armorMarkers.Remove(container);
         }
     }
 }
