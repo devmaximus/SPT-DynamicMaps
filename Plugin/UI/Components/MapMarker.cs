@@ -46,44 +46,44 @@ namespace DynamicMaps.UI.Components
                     {LayerStatus.FullReveal, 1.0f},
                 }},
                 {"ContainerWeapon", new Dictionary<LayerStatus, float> {
-                    {LayerStatus.Hidden, 0.50f},
-                    {LayerStatus.Underneath, 0.75f},
+                    {LayerStatus.Hidden, 0.22f},
+                    {LayerStatus.Underneath, 0.38f},
                     {LayerStatus.OnTop, 1.0f},
                     {LayerStatus.FullReveal, 1.0f},
                 }},
                 {"ContainerPistol", new Dictionary<LayerStatus, float> {
-                    {LayerStatus.Hidden, 0.50f},
-                    {LayerStatus.Underneath, 0.75f},
+                    {LayerStatus.Hidden, 0.22f},
+                    {LayerStatus.Underneath, 0.38f},
                     {LayerStatus.OnTop, 1.0f},
                     {LayerStatus.FullReveal, 1.0f},
                 }},
                 {"ContainerArmor", new Dictionary<LayerStatus, float> {
-                    {LayerStatus.Hidden, 0.50f},
-                    {LayerStatus.Underneath, 0.75f},
+                    {LayerStatus.Hidden, 0.22f},
+                    {LayerStatus.Underneath, 0.38f},
                     {LayerStatus.OnTop, 1.0f},
                     {LayerStatus.FullReveal, 1.0f},
                 }},
                 {"ContainerHelmet", new Dictionary<LayerStatus, float> {
-                    {LayerStatus.Hidden, 0.50f},
-                    {LayerStatus.Underneath, 0.75f},
+                    {LayerStatus.Hidden, 0.22f},
+                    {LayerStatus.Underneath, 0.38f},
                     {LayerStatus.OnTop, 1.0f},
                     {LayerStatus.FullReveal, 1.0f},
                 }},
                 {"ContainerVest", new Dictionary<LayerStatus, float> {
-                    {LayerStatus.Hidden, 0.50f},
-                    {LayerStatus.Underneath, 0.75f},
+                    {LayerStatus.Hidden, 0.22f},
+                    {LayerStatus.Underneath, 0.38f},
                     {LayerStatus.OnTop, 1.0f},
                     {LayerStatus.FullReveal, 1.0f},
                 }},
                 {"ContainerBag", new Dictionary<LayerStatus, float> {
-                    {LayerStatus.Hidden, 0.50f},
-                    {LayerStatus.Underneath, 0.75f},
+                    {LayerStatus.Hidden, 0.22f},
+                    {LayerStatus.Underneath, 0.38f},
                     {LayerStatus.OnTop, 1.0f},
                     {LayerStatus.FullReveal, 1.0f},
                 }},
                 {"ContainerStuff", new Dictionary<LayerStatus, float> {
-                    {LayerStatus.Hidden, 0.50f},
-                    {LayerStatus.Underneath, 0.75f},
+                    {LayerStatus.Hidden, 0.18f},
+                    {LayerStatus.Underneath, 0.32f},
                     {LayerStatus.OnTop, 1.0f},
                     {LayerStatus.FullReveal, 1.0f},
                 }},
@@ -257,9 +257,17 @@ namespace DynamicMaps.UI.Components
             imageGO.GetRectTransform().pivot = new Vector2(0.5f, 0.5f);
             marker.Image = imageGO.AddComponent<Image>();
             marker.Image.raycastTarget = false;
-            marker.Image.sprite = sprite is null 
-                ? TextureUtils.GetOrLoadCachedSprite(imageRelativePath)
-                : sprite;
+            // Prefer provided sprite; otherwise load path. Never pass null into the sprite cache.
+            var resolved = sprite;
+            if (resolved == null && !string.IsNullOrEmpty(imageRelativePath))
+            {
+                resolved = TextureUtils.GetOrLoadCachedSprite(imageRelativePath);
+            }
+            if (resolved == null)
+            {
+                resolved = TextureUtils.GetOrLoadCachedSprite("Markers/dot.png");
+            }
+            marker.Image.sprite = resolved;
             marker.Image.type = Image.Type.Simple;
 
             // var outline = imageGO.AddComponent<Outline>();
