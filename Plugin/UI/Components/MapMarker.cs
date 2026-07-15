@@ -45,6 +45,48 @@ namespace DynamicMaps.UI.Components
                     {LayerStatus.OnTop, 1.0f},
                     {LayerStatus.FullReveal, 1.0f},
                 }},
+                {"ContainerWeapon", new Dictionary<LayerStatus, float> {
+                    {LayerStatus.Hidden, 0.50f},
+                    {LayerStatus.Underneath, 0.75f},
+                    {LayerStatus.OnTop, 1.0f},
+                    {LayerStatus.FullReveal, 1.0f},
+                }},
+                {"ContainerPistol", new Dictionary<LayerStatus, float> {
+                    {LayerStatus.Hidden, 0.50f},
+                    {LayerStatus.Underneath, 0.75f},
+                    {LayerStatus.OnTop, 1.0f},
+                    {LayerStatus.FullReveal, 1.0f},
+                }},
+                {"ContainerArmor", new Dictionary<LayerStatus, float> {
+                    {LayerStatus.Hidden, 0.50f},
+                    {LayerStatus.Underneath, 0.75f},
+                    {LayerStatus.OnTop, 1.0f},
+                    {LayerStatus.FullReveal, 1.0f},
+                }},
+                {"ContainerHelmet", new Dictionary<LayerStatus, float> {
+                    {LayerStatus.Hidden, 0.50f},
+                    {LayerStatus.Underneath, 0.75f},
+                    {LayerStatus.OnTop, 1.0f},
+                    {LayerStatus.FullReveal, 1.0f},
+                }},
+                {"ContainerVest", new Dictionary<LayerStatus, float> {
+                    {LayerStatus.Hidden, 0.50f},
+                    {LayerStatus.Underneath, 0.75f},
+                    {LayerStatus.OnTop, 1.0f},
+                    {LayerStatus.FullReveal, 1.0f},
+                }},
+                {"ContainerBag", new Dictionary<LayerStatus, float> {
+                    {LayerStatus.Hidden, 0.50f},
+                    {LayerStatus.Underneath, 0.75f},
+                    {LayerStatus.OnTop, 1.0f},
+                    {LayerStatus.FullReveal, 1.0f},
+                }},
+                {"ContainerStuff", new Dictionary<LayerStatus, float> {
+                    {LayerStatus.Hidden, 0.50f},
+                    {LayerStatus.Underneath, 0.75f},
+                    {LayerStatus.OnTop, 1.0f},
+                    {LayerStatus.FullReveal, 1.0f},
+                }},
             };
         public static Dictionary<string, Dictionary<LayerStatus, float>> CategoryLabelAlphaLayerStatus { get; protected set; }
             = new Dictionary<string, Dictionary<LayerStatus, float>>
