@@ -137,7 +137,8 @@ public class HiddenStashMarkerProvider : IDynamicMarkerProvider
     private static bool IsArmor(Item item)
     {
         if (item is ArmorPlateItemClass) return false;
-        return item is ArmorItemClass || item is HeadwearItemClass;
+        if (item is ArmorItemClass) return true;
+        return item is HeadwearItemClass && item.GetItemComponent<ArmorComponent>() != null;
     }
 
     private void TryRemoveMarkers()

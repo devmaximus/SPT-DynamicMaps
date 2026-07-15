@@ -16,22 +16,27 @@ using UnityEngine;
 namespace DynamicMaps.DynamicMarkers
 {
     /// <summary>
-    /// Marks any LootableContainer whose inventory contains firearms and/or armor.
-    /// Live-clears / refreshes markers when gear is taken out or put in (Add/RemoveItemEvent).
+    /// Marks lootable containers by content type (long gun / pistol / body armor / helmet / vest / bag / misc).
+    /// Markers sit on the container transform; multi-type uses a tight map-plane fan (~0.35m).
     /// </summary>
     public class ContainerWeaponMarkerProvider : IDynamicMarkerProvider
     {
-        /// <summary>
-        /// Small map-plane offset (meters) so paired icons do not fully stack.
-        /// Keep tiny — a prior 12m offset placed armor away from the real container.
-        /// </summary>
-        private const float MarkerPairOffset = 1.5f;
+        /// <summary>Map-plane meters between sibling icons — keep tiny so the pin stays on the crate.</summary>
+        private const float MarkerFanStep = 0.35f;
 
         private MapView _lastMapView;
-        private readonly Dictionary<LootableContainer, DynamicMaps.UI.Components.MapMarker> _weaponMarkers = [];
-        private readonly Dictionary<LootableContainer, DynamicMaps.UI.Components.MapMarker> _armorMarkers = [];
+        private readonly Dictionary<LootableContainer, List<DynamicMaps.UI.Components.MapMarker>> _markersByContainer = [];
         private readonly Dictionary<IItemOwner, (Action<GEventArgs3> onRemove, Action<GEventArgs2> onAdd)> _ownerHandlers = [];
         private readonly List<Item> _scanBuffer = new(64);
+        private readonly List<ContentHit> _hits = new(8);
+
+        private struct ContentHit
+        {
+            public Item Item;
+            public string Category;
+            public Color Color;
+            public string Label;
+        }
 
         public void OnShowInRaid(MapView map)
         {
@@ -41,7 +46,6 @@ namespace DynamicMaps.DynamicMarkers
 
         public void OnHideInRaid(MapView map)
         {
-            // Keep markers + subscriptions so looting while map is closed still clears icons.
         }
 
         public void OnRaidEnd(MapView map)
@@ -80,19 +84,24 @@ namespace DynamicMaps.DynamicMarkers
         {
         }
 
+        private static bool AnyContainerContentEnabled()
+        {
+            return Settings.ShowContainerWeaponsInRaid.Value
+                   || Settings.ShowContainerArmorInRaid.Value
+                   || Settings.ShowContainerVestsInRaid.Value
+                   || Settings.ShowContainerBagsInRaid.Value
+                   || Settings.ShowContainerStuffInRaid.Value;
+        }
+
         private void IndexContainers()
         {
-            var wantWeapons = Settings.ShowContainerWeaponsInRaid.Value;
-            var wantArmor = Settings.ShowContainerArmorInRaid.Value;
-            if (!wantWeapons && !wantArmor) return;
+            if (!AnyContainerContentEnabled()) return;
 
             var gameWorld = Singleton<GameWorld>.Instance;
             if (gameWorld == null) return;
 
             var sw = Stopwatch.StartNew();
             var containerCount = 0;
-            var itemVisits = 0;
-            var maxItems = 0;
 
             foreach (var killable in gameWorld.LootList)
             {
@@ -101,52 +110,33 @@ namespace DynamicMaps.DynamicMarkers
 
                 containerCount++;
                 EnsureSubscribed(container);
-
-                _scanBuffer.Clear();
-                container.ItemOwner.RootItem.GetAllAssembledItemsNonAlloc(_scanBuffer);
-
-                var n = _scanBuffer.Count;
-                itemVisits += n;
-                if (n > maxItems) maxItems = n;
-
-                SyncContainerMarkers(container, wantWeapons, wantArmor);
+                SyncContainerMarkers(container);
             }
 
             sw.Stop();
 #if DEBUG
             Plugin.Log.LogInfo(
-                $"[ContainerGear] containers={containerCount} itemVisits={itemVisits} maxI={maxItems} " +
-                $"weapons={_weaponMarkers.Count} armor={_armorMarkers.Count} ms={sw.ElapsedMilliseconds}");
+                $"[ContainerGear] containers={containerCount} marked={_markersByContainer.Count} ms={sw.ElapsedMilliseconds}");
 #endif
         }
 
-        private void SyncContainerMarkers(LootableContainer container, bool wantWeapons, bool wantArmor)
+        private void SyncContainerMarkers(LootableContainer container)
         {
             if (container == null || _lastMapView == null) return;
 
+            TryRemoveMarkers(container);
+
             if (container.ItemOwner?.RootItem == null)
             {
-                TryRemoveWeaponMarker(container);
-                TryRemoveArmorMarker(container);
+                TryRestoreHiddenStash(container);
                 return;
             }
 
             _scanBuffer.Clear();
             container.ItemOwner.RootItem.GetAllAssembledItemsNonAlloc(_scanBuffer);
-            FindFirstWeaponAndArmor(_scanBuffer, out var weapon, out var armor);
+            CollectHits(_scanBuffer, _hits);
 
-            var showWeapon = wantWeapons
-                             && weapon != null
-                             && Settings.ShowContainerWeaponIntelLevel.Value <= GameUtils.GetIntelLevel();
-            var showArmor = wantArmor
-                            && armor != null
-                            && Settings.ShowContainerArmorIntelLevel.Value <= GameUtils.GetIntelLevel();
-
-            // Always rebuild so pair-offset vs centered stays correct after loot.
-            TryRemoveWeaponMarker(container);
-            TryRemoveArmorMarker(container);
-
-            if (!showWeapon && !showArmor)
+            if (_hits.Count == 0)
             {
                 TryRestoreHiddenStash(container);
                 return;
@@ -155,39 +145,239 @@ namespace DynamicMaps.DynamicMarkers
             var transform = container.transform;
             if (transform == null) return;
 
+            // Exact container world→map position (no large pair offset).
             var basePos = MathUtils.ConvertToMapPosition(transform);
-            var both = showWeapon && showArmor;
+            var list = new List<DynamicMaps.UI.Components.MapMarker>(_hits.Count);
 
-            if (showWeapon)
+            for (var i = 0; i < _hits.Count; i++)
             {
-                var pos = both
-                    ? basePos + new Vector3(-MarkerPairOffset, 0f, 0f)
-                    : basePos;
-                var marker = AddContentMarker(
-                    weapon,
-                    "ContainerWeapon",
-                    Settings.ContainerWeaponColor.Value,
-                    pos);
+                var hit = _hits[i];
+                var pos = FanPosition(basePos, i, _hits.Count);
+                var marker = AddContentMarker(hit.Item, hit.Category, hit.Color, pos, hit.Label);
                 marker.transform.SetAsLastSibling();
-                _weaponMarkers[container] = marker;
+                list.Add(marker);
             }
 
-            if (showArmor)
-            {
-                var pos = both
-                    ? basePos + new Vector3(MarkerPairOffset, 0f, 0f)
-                    : basePos;
-                var marker = AddContentMarker(
-                    armor,
-                    "ContainerArmor",
-                    Settings.ContainerArmorColor.Value,
-                    pos);
-                marker.transform.SetAsLastSibling();
-                _armorMarkers[container] = marker;
-            }
-
-            // Same-container barrel would cover the gun — suppress stash icon while gear is shown.
+            _markersByContainer[container] = list;
             TrySuppressHiddenStash(container);
+        }
+
+        private static Vector3 FanPosition(Vector3 basePos, int index, int total)
+        {
+            if (total <= 1)
+            {
+                return basePos;
+            }
+
+            var start = -0.5f * (total - 1) * MarkerFanStep;
+            return basePos + new Vector3(start + index * MarkerFanStep, 0f, 0f);
+        }
+
+        private void CollectHits(List<Item> buffer, List<ContentHit> hits)
+        {
+            hits.Clear();
+
+            Weapon longGun = null;
+            Weapon pistol = null;
+            Item bodyArmor = null;
+            Item helmet = null;
+            Item vest = null;
+            Item bag = null;
+            Item stuff = null;
+
+            var intel = GameUtils.GetIntelLevel();
+            var wantWeapons = Settings.ShowContainerWeaponsInRaid.Value
+                              && Settings.ShowContainerWeaponIntelLevel.Value <= intel;
+            var wantArmor = Settings.ShowContainerArmorInRaid.Value
+                            && Settings.ShowContainerArmorIntelLevel.Value <= intel;
+            var wantVests = Settings.ShowContainerVestsInRaid.Value
+                            && Settings.ShowContainerArmorIntelLevel.Value <= intel;
+            var wantBags = Settings.ShowContainerBagsInRaid.Value
+                           && Settings.ShowContainerArmorIntelLevel.Value <= intel;
+            var wantStuff = Settings.ShowContainerStuffInRaid.Value
+                            && Settings.ShowContainerArmorIntelLevel.Value <= intel;
+
+            for (var i = 0; i < buffer.Count; i++)
+            {
+                var item = buffer[i];
+                if (item == null) continue;
+
+                if (item is Weapon weapon)
+                {
+                    if (IsPistol(weapon))
+                    {
+                        pistol ??= weapon;
+                    }
+                    else
+                    {
+                        longGun ??= weapon;
+                    }
+
+                    continue;
+                }
+
+                if (IsBodyArmor(item))
+                {
+                    bodyArmor ??= item;
+                    continue;
+                }
+
+                if (IsArmoredHelmet(item))
+                {
+                    helmet ??= item;
+                    continue;
+                }
+
+                if (IsVest(item))
+                {
+                    vest ??= item;
+                    continue;
+                }
+
+                if (IsBag(item))
+                {
+                    bag ??= item;
+                    continue;
+                }
+
+                if (wantStuff && stuff == null && IsNotableStuff(item))
+                {
+                    stuff = item;
+                }
+            }
+
+            if (wantWeapons && longGun != null)
+            {
+                hits.Add(new ContentHit
+                {
+                    Item = longGun,
+                    Category = "ContainerWeapon",
+                    Color = Settings.ContainerWeaponColor.Value,
+                    Label = longGun.LocalizedName()
+                });
+            }
+
+            if (wantWeapons && pistol != null)
+            {
+                hits.Add(new ContentHit
+                {
+                    Item = pistol,
+                    Category = "ContainerPistol",
+                    Color = Settings.ContainerPistolColor.Value,
+                    Label = pistol.LocalizedName()
+                });
+            }
+
+            if (wantArmor && bodyArmor != null)
+            {
+                hits.Add(new ContentHit
+                {
+                    Item = bodyArmor,
+                    Category = "ContainerArmor",
+                    Color = Settings.ContainerArmorColor.Value,
+                    Label = bodyArmor.LocalizedName()
+                });
+            }
+
+            if (wantArmor && helmet != null)
+            {
+                hits.Add(new ContentHit
+                {
+                    Item = helmet,
+                    Category = "ContainerHelmet",
+                    Color = Settings.ContainerHelmetColor.Value,
+                    Label = helmet.LocalizedName()
+                });
+            }
+
+            if (wantVests && vest != null)
+            {
+                hits.Add(new ContentHit
+                {
+                    Item = vest,
+                    Category = "ContainerVest",
+                    Color = Settings.ContainerVestColor.Value,
+                    Label = vest.LocalizedName()
+                });
+            }
+
+            if (wantBags && bag != null)
+            {
+                hits.Add(new ContentHit
+                {
+                    Item = bag,
+                    Category = "ContainerBag",
+                    Color = Settings.ContainerBagColor.Value,
+                    Label = bag.LocalizedName()
+                });
+            }
+
+            // Misc only when no gear categories are shown — avoids clutter on rich crates.
+            var hasGearHit = hits.Count > 0;
+            if (wantStuff && stuff != null && !hasGearHit)
+            {
+                hits.Add(new ContentHit
+                {
+                    Item = stuff,
+                    Category = "ContainerStuff",
+                    Color = Settings.ContainerStuffColor.Value,
+                    Label = stuff.LocalizedName()
+                });
+            }
+        }
+
+        private static bool IsPistol(Weapon weapon)
+        {
+            return string.Equals(weapon.WeapClass, "pistol", StringComparison.OrdinalIgnoreCase);
+        }
+
+        /// <summary>Chest/body armor only — not plates, not soft vests.</summary>
+        private static bool IsBodyArmor(Item item)
+        {
+            return item is ArmorItemClass && item is not ArmorPlateItemClass;
+        }
+
+        /// <summary>Headwear that actually has an ArmorComponent (real helmets, not caps/ushankas).</summary>
+        private static bool IsArmoredHelmet(Item item)
+        {
+            return item is HeadwearItemClass && item.GetItemComponent<ArmorComponent>() != null;
+        }
+
+        private static bool IsVest(Item item)
+        {
+            return item is VestItemClass;
+        }
+
+        private static bool IsBag(Item item)
+        {
+            if (item is BackpackItemClass)
+            {
+                return true;
+            }
+
+            return ItemViewFactory.GetItemType(item.GetType()) == EItemType.Backpack;
+        }
+
+        /// <summary>Skip pure junk (ammo stacks, money, keys noise) for the "stuff" pin.</summary>
+        private static bool IsNotableStuff(Item item)
+        {
+            if (item is AmmoItemClass || item is MoneyItemClass || item is KeyItemClass)
+            {
+                return false;
+            }
+
+            if (item is ArmorPlateItemClass)
+            {
+                return false;
+            }
+
+            // Nested weapon parts / mags are not useful as the crate summary.
+            if (item is MagazineItemClass || item is Mod)
+            {
+                return false;
+            }
+
+            return true;
         }
 
         private static void TrySuppressHiddenStash(LootableContainer container)
@@ -202,45 +392,7 @@ namespace DynamicMaps.DynamicMarkers
                 ?.TryRestoreForContainer(container);
         }
 
-        private static void FindFirstWeaponAndArmor(List<Item> buffer, out Weapon weapon, out Item armor)
-        {
-            weapon = null;
-            armor = null;
-
-            for (var i = 0; i < buffer.Count; i++)
-            {
-                var item = buffer[i];
-                if (weapon == null && item is Weapon w)
-                {
-                    weapon = w;
-                }
-
-                if (armor == null && IsArmor(item))
-                {
-                    armor = item;
-                }
-
-                if (weapon != null && armor != null)
-                {
-                    return;
-                }
-            }
-        }
-
-        /// <summary>
-        /// Body armor + armored headwear. Soft chest rigs (VestItemClass) and loose plates excluded.
-        /// </summary>
-        private static bool IsArmor(Item item)
-        {
-            if (item is ArmorPlateItemClass)
-            {
-                return false;
-            }
-
-            return item is ArmorItemClass || item is HeadwearItemClass;
-        }
-
-        private DynamicMaps.UI.Components.MapMarker AddContentMarker(Item item, string category, Color color, Vector3 mapPosition)
+        private DynamicMaps.UI.Components.MapMarker AddContentMarker(Item item, string category, Color color, Vector3 mapPosition, string label)
         {
             var itemType = ItemViewFactory.GetItemType(item.GetType());
             var itemSprite = EFTHardSettings.Instance.StaticIcons.ItemTypeSprites.GetValueOrDefault(itemType);
@@ -251,7 +403,7 @@ namespace DynamicMaps.DynamicMarkers
                 Color = color,
                 Sprite = itemSprite,
                 Position = mapPosition,
-                Text = item.TemplateId.LocalizedName()
+                Text = label
             };
 
             return _lastMapView.AddMapMarker(markerDef);
@@ -265,13 +417,13 @@ namespace DynamicMaps.DynamicMarkers
             Action<GEventArgs3> onRemove = args =>
             {
                 if (args == null || args.Status != CommandStatus.Succeed) return;
-                OnContainerInventoryChanged(container, args.Item);
+                SyncContainerMarkers(container);
             };
 
             Action<GEventArgs2> onAdd = args =>
             {
                 if (args == null || args.Status != CommandStatus.Succeed) return;
-                OnContainerInventoryChanged(container, args.Item);
+                SyncContainerMarkers(container);
             };
 
             owner.RemoveItemEvent += onRemove;
@@ -293,51 +445,25 @@ namespace DynamicMaps.DynamicMarkers
             _ownerHandlers.Clear();
         }
 
-        private void OnContainerInventoryChanged(LootableContainer container, Item changedItem)
-        {
-            if (_lastMapView == null || container == null) return;
-
-            // Ignore ammo / junk noise; always refresh if item unknown (safer for nested moves).
-            if (changedItem != null
-                && changedItem is not Weapon
-                && !IsArmor(changedItem))
-            {
-                return;
-            }
-
-            SyncContainerMarkers(
-                container,
-                Settings.ShowContainerWeaponsInRaid.Value,
-                Settings.ShowContainerArmorInRaid.Value);
-        }
-
         private void TryRemoveAllMarkers()
         {
-            foreach (var container in _weaponMarkers.Keys.ToList())
+            foreach (var container in _markersByContainer.Keys.ToList())
             {
-                TryRemoveWeaponMarker(container);
-            }
-
-            foreach (var container in _armorMarkers.Keys.ToList())
-            {
-                TryRemoveArmorMarker(container);
+                TryRemoveMarkers(container);
             }
         }
 
-        private void TryRemoveWeaponMarker(LootableContainer container)
+        private void TryRemoveMarkers(LootableContainer container)
         {
-            if (!_weaponMarkers.TryGetValue(container, out var marker)) return;
+            if (!_markersByContainer.TryGetValue(container, out var list)) return;
 
-            marker.ContainingMapView.RemoveMapMarker(marker);
-            _weaponMarkers.Remove(container);
-        }
+            foreach (var marker in list)
+            {
+                if (marker == null) continue;
+                marker.ContainingMapView?.RemoveMapMarker(marker);
+            }
 
-        private void TryRemoveArmorMarker(LootableContainer container)
-        {
-            if (!_armorMarkers.TryGetValue(container, out var marker)) return;
-
-            marker.ContainingMapView.RemoveMapMarker(marker);
-            _armorMarkers.Remove(container);
+            _markersByContainer.Remove(container);
         }
     }
 }

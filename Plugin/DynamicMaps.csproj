@@ -94,6 +94,9 @@
     <Reference Include="spt-common">
       <HintPath>$(TarkovPluginsSPTDir)spt-common.dll</HintPath>
     </Reference>
+    <Reference Include="ItemComponent.Types">
+      <HintPath>$(TarkovManagedDir)ItemComponent.Types.dll</HintPath>
+    </Reference>
   </ItemGroup>
 
   <!-- Gets the version property from the VERSION.txt file -->
