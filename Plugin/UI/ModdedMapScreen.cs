@@ -960,7 +960,10 @@ namespace DynamicMaps.UI
             AddRemoveMarkerProvider<LootMarkerProvider>(Settings.ShowWishListItemsInRaid.Value);
             AddRemoveMarkerProvider<HiddenStashMarkerProvider>(Settings.ShowHiddenStashesInRaid.Value);
             var showContainerGear = Settings.ShowContainerWeaponsInRaid.Value
-                                    || Settings.ShowContainerArmorInRaid.Value;
+                                    || Settings.ShowContainerArmorInRaid.Value
+                                    || Settings.ShowContainerVestsInRaid.Value
+                                    || Settings.ShowContainerBagsInRaid.Value
+                                    || Settings.ShowContainerStuffInRaid.Value;
             AddRemoveMarkerProvider<ContainerWeaponMarkerProvider>(showContainerGear);
             AddRemoveMarkerProvider<TransitMarkerProvider>(Settings.ShowTransitPointsInRaid.Value);
             AddRemoveMarkerProvider<SecretMarkerProvider>(Settings.ShowSecretPointsInRaid.Value);

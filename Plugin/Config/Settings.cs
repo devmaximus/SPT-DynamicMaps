@@ -53,6 +53,9 @@ namespace DynamicMaps.Config
         public static ConfigEntry<bool> ShowHiddenStashesInRaid;
         public static ConfigEntry<bool> ShowContainerWeaponsInRaid;
         public static ConfigEntry<bool> ShowContainerArmorInRaid;
+        public static ConfigEntry<bool> ShowContainerVestsInRaid;
+        public static ConfigEntry<bool> ShowContainerBagsInRaid;
+        public static ConfigEntry<bool> ShowContainerStuffInRaid;
         public static ConfigEntry<bool> ShowFriendlyCorpsesInRaid;
         public static ConfigEntry<bool> ShowKilledCorpsesInRaid;
         public static ConfigEntry<bool> ShowFriendlyKilledCorpsesInRaid;
@@ -133,7 +136,12 @@ namespace DynamicMaps.Config
         public static ConfigEntry<Color> SecretPointColor;
         public static ConfigEntry<Color> HiddenStashColor;
         public static ConfigEntry<Color> ContainerWeaponColor;
+        public static ConfigEntry<Color> ContainerPistolColor;
         public static ConfigEntry<Color> ContainerArmorColor;
+        public static ConfigEntry<Color> ContainerHelmetColor;
+        public static ConfigEntry<Color> ContainerVestColor;
+        public static ConfigEntry<Color> ContainerBagColor;
+        public static ConfigEntry<Color> ContainerStuffColor;
         
         #endregion
         
@@ -439,7 +447,34 @@ namespace DynamicMaps.Config
                 "Show Container Armor In Raid",
                 true,
                 new ConfigDescription(
-                    "Mark any lootable container (crates, stashes, etc.) that contains armor, armored rigs, or helmets",
+                    "Mark containers with chest/body armor or real helmets (ArmorComponent — not soft hats)",
+                    null,
+                    new ConfigurationManagerAttributes { })));
+
+            ConfigEntries.Add(ShowContainerVestsInRaid = config.Bind(
+                DynamicMarkerTitle,
+                "Show Container Vests In Raid",
+                true,
+                new ConfigDescription(
+                    "Mark containers that contain a chest rig / vest",
+                    null,
+                    new ConfigurationManagerAttributes { })));
+
+            ConfigEntries.Add(ShowContainerBagsInRaid = config.Bind(
+                DynamicMarkerTitle,
+                "Show Container Bags In Raid",
+                true,
+                new ConfigDescription(
+                    "Mark containers that contain a backpack",
+                    null,
+                    new ConfigurationManagerAttributes { })));
+
+            ConfigEntries.Add(ShowContainerStuffInRaid = config.Bind(
+                DynamicMarkerTitle,
+                "Show Container Misc Loot In Raid",
+                true,
+                new ConfigDescription(
+                    "Mark containers that only have misc loot (no weapon/armor/vest/bag) — muted color",
                     null,
                     new ConfigurationManagerAttributes { })));
 
@@ -965,19 +1000,64 @@ namespace DynamicMaps.Config
 
             ConfigEntries.Add(ContainerWeaponColor = config.Bind(
                 MarkerColors,
-                "Container weapon marker color",
-                new Color(1f, 0.55f, 0.0f),
+                "Container long-weapon marker color",
+                new Color(1f, 0.45f, 0.05f),
                 new ConfigDescription(
-                    "Color of the marker",
+                    "Rifles / SMGs / shotguns / LMGs in containers",
+                    null,
+                    new ConfigurationManagerAttributes { })));
+
+            ConfigEntries.Add(ContainerPistolColor = config.Bind(
+                MarkerColors,
+                "Container pistol marker color",
+                new Color(1f, 0.92f, 0.2f),
+                new ConfigDescription(
+                    "Pistols in containers",
                     null,
                     new ConfigurationManagerAttributes { })));
 
             ConfigEntries.Add(ContainerArmorColor = config.Bind(
                 MarkerColors,
-                "Container armor marker color",
-                new Color(0.35f, 0.65f, 1f),
+                "Container body-armor marker color",
+                new Color(0.25f, 0.55f, 1f),
                 new ConfigDescription(
-                    "Color of the marker",
+                    "Chest / body armor in containers",
+                    null,
+                    new ConfigurationManagerAttributes { })));
+
+            ConfigEntries.Add(ContainerHelmetColor = config.Bind(
+                MarkerColors,
+                "Container helmet marker color",
+                new Color(0.45f, 0.85f, 1f),
+                new ConfigDescription(
+                    "Armored helmets in containers (not soft hats)",
+                    null,
+                    new ConfigurationManagerAttributes { })));
+
+            ConfigEntries.Add(ContainerVestColor = config.Bind(
+                MarkerColors,
+                "Container vest marker color",
+                new Color(0.25f, 0.85f, 0.4f),
+                new ConfigDescription(
+                    "Chest rigs / vests in containers",
+                    null,
+                    new ConfigurationManagerAttributes { })));
+
+            ConfigEntries.Add(ContainerBagColor = config.Bind(
+                MarkerColors,
+                "Container bag marker color",
+                new Color(0.72f, 0.45f, 0.2f),
+                new ConfigDescription(
+                    "Backpacks in containers",
+                    null,
+                    new ConfigurationManagerAttributes { })));
+
+            ConfigEntries.Add(ContainerStuffColor = config.Bind(
+                MarkerColors,
+                "Container misc-loot marker color",
+                new Color(0.65f, 0.65f, 0.65f),
+                new ConfigDescription(
+                    "Misc-only containers (no gear categories)",
                     null,
                     new ConfigurationManagerAttributes { })));
             
