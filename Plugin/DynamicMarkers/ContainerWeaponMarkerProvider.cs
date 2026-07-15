@@ -109,15 +109,20 @@ namespace DynamicMaps.DynamicMarkers
                 if (!container.IsInitialized || container.ItemOwner?.RootItem == null) continue;
 
                 containerCount++;
-                EnsureSubscribed(container);
-                SyncContainerMarkers(container);
+                try
+                {
+                    EnsureSubscribed(container);
+                    SyncContainerMarkers(container);
+                }
+                catch (System.Exception ex)
+                {
+                    Plugin.Log.LogWarning($"[ContainerGear] failed on container '{container.name}': {ex.Message}");
+                }
             }
 
             sw.Stop();
-#if DEBUG
             Plugin.Log.LogInfo(
                 $"[ContainerGear] containers={containerCount} marked={_markersByContainer.Count} ms={sw.ElapsedMilliseconds}");
-#endif
         }
 
         private void SyncContainerMarkers(LootableContainer container)
@@ -133,8 +138,9 @@ namespace DynamicMaps.DynamicMarkers
             }
 
             _scanBuffer.Clear();
-            container.ItemOwner.RootItem.GetAllAssembledItemsNonAlloc(_scanBuffer);
-            CollectHits(_scanBuffer, _hits);
+            var root = container.ItemOwner.RootItem;
+            root.GetAllAssembledItemsNonAlloc(_scanBuffer);
+            CollectHits(_scanBuffer, root, _hits);
 
             if (_hits.Count == 0)
             {
@@ -173,7 +179,7 @@ namespace DynamicMaps.DynamicMarkers
             return basePos + new Vector3(start + index * MarkerFanStep, 0f, 0f);
         }
 
-        private void CollectHits(List<Item> buffer, List<ContentHit> hits)
+        private void CollectHits(List<Item> buffer, Item root, List<ContentHit> hits)
         {
             hits.Clear();
 
@@ -184,6 +190,7 @@ namespace DynamicMaps.DynamicMarkers
             Item vest = null;
             Item bag = null;
             Item stuff = null;
+            var hasAnyLoot = false;
 
             var intel = GameUtils.GetIntelLevel();
             var wantWeapons = Settings.ShowContainerWeaponsInRaid.Value
@@ -201,6 +208,10 @@ namespace DynamicMaps.DynamicMarkers
             {
                 var item = buffer[i];
                 if (item == null) continue;
+                // Root is the crate/stash shell — never treat it as loot (empty-crate noise).
+                if (root != null && ReferenceEquals(item, root)) continue;
+
+                hasAnyLoot = true;
 
                 if (item is Weapon weapon)
                 {
@@ -312,16 +323,17 @@ namespace DynamicMaps.DynamicMarkers
                 });
             }
 
-            // Misc only when no gear categories are shown — avoids clutter on rich crates.
+            // Gray box for any remaining contents when no weapon/armor/vest/bag pin.
+            // Empty crates (root only) must produce zero hits.
             var hasGearHit = hits.Count > 0;
-            if (wantStuff && stuff != null && !hasGearHit)
+            if (wantStuff && !hasGearHit && hasAnyLoot)
             {
                 hits.Add(new ContentHit
                 {
                     Item = stuff,
                     Category = "ContainerStuff",
                     Color = Settings.ContainerStuffColor.Value,
-                    Label = stuff.LocalizedName()
+                    Label = stuff != null ? stuff.LocalizedName() : "Loot"
                 });
             }
         }
@@ -358,7 +370,7 @@ namespace DynamicMaps.DynamicMarkers
             return ItemViewFactory.GetItemType(item.GetType()) == EItemType.Backpack;
         }
 
-        /// <summary>Skip pure junk (ammo stacks, money, keys noise) for the "stuff" pin.</summary>
+        /// <summary>Misc pin can use any remaining loot; skip nested mods/plates as the label pick.</summary>
         private static bool IsNotableStuff(Item item)
         {
             if (item is AmmoItemClass || item is MoneyItemClass || item is KeyItemClass)
@@ -371,7 +383,6 @@ namespace DynamicMaps.DynamicMarkers
                 return false;
             }
 
-            // Nested weapon parts / mags are not useful as the crate summary.
             if (item is MagazineItemClass || item is Mod)
             {
                 return false;
@@ -392,21 +403,129 @@ namespace DynamicMaps.DynamicMarkers
                 ?.TryRestoreForContainer(container);
         }
 
+        // UI sizes — map default markers are 30x30; keep gear readable at zoom.
+        private static readonly Vector2 SizeGun = new Vector2(32f, 18f);
+        private static readonly Vector2 SizePistol = new Vector2(22f, 18f);
+        private static readonly Vector2 SizeArmor = new Vector2(22f, 26f);
+        private static readonly Vector2 SizeHelmet = new Vector2(22f, 18f);
+        private static readonly Vector2 SizeVest = new Vector2(22f, 26f);
+        private static readonly Vector2 SizeBag = new Vector2(24f, 24f);
+        private static readonly Vector2 SizeStuff = new Vector2(16f, 16f);
+        private static readonly Color32 White = new Color32(255, 255, 255, 255);
+
         private DynamicMaps.UI.Components.MapMarker AddContentMarker(Item item, string category, Color color, Vector3 mapPosition, string label)
         {
-            var itemType = ItemViewFactory.GetItemType(item.GetType());
-            var itemSprite = EFTHardSettings.Instance.StaticIcons.ItemTypeSprites.GetValueOrDefault(itemType);
-
+            ResolveVisual(category, out var sprite, out var size);
             var markerDef = new MapMarkerDef
             {
                 Category = category,
                 Color = color,
-                Sprite = itemSprite,
+                Sprite = sprite,
+                ImagePath = null,
                 Position = mapPosition,
                 Text = label
             };
 
-            return _lastMapView.AddMapMarker(markerDef);
+            var marker = _lastMapView.AddMapMarker(markerDef);
+            marker.Size = size;
+            return marker;
+        }
+
+        private static void ResolveVisual(string category, out Sprite sprite, out Vector2 size)
+        {
+            switch (category)
+            {
+                case "ContainerWeapon":
+                    size = SizeGun;
+                    sprite = TextureUtils.GetOrCreateCachedSprite("proc/gun", 20, 10, PaintGun);
+                    break;
+                case "ContainerPistol":
+                    size = SizePistol;
+                    sprite = TextureUtils.GetOrCreateCachedSprite("proc/pistol", 12, 10, PaintPistol);
+                    break;
+                case "ContainerArmor":
+                    size = SizeArmor;
+                    sprite = TextureUtils.GetOrCreateCachedSprite("proc/armor", 12, 14, PaintArmor);
+                    break;
+                case "ContainerHelmet":
+                    size = SizeHelmet;
+                    sprite = TextureUtils.GetOrCreateCachedSprite("proc/helmet", 12, 10, PaintHelmet);
+                    break;
+                case "ContainerVest":
+                    size = SizeVest;
+                    sprite = TextureUtils.GetOrCreateCachedSprite("proc/vest", 12, 14, PaintVest);
+                    break;
+                case "ContainerBag":
+                    size = SizeBag;
+                    sprite = TextureUtils.GetOrLoadCachedSprite("Markers/backpack.png")
+                             ?? TextureUtils.GetOrCreateCachedSprite("proc/bag", 12, 12, PaintBag);
+                    break;
+                default:
+                    size = SizeStuff;
+                    sprite = TextureUtils.GetOrCreateCachedSprite("proc/square", 8, 8, PaintSquare);
+                    break;
+            }
+
+            if (sprite == null)
+            {
+                sprite = TextureUtils.GetOrCreateCachedSprite("proc/square", 8, 8, PaintSquare);
+                size = SizeStuff;
+            }
+        }
+
+        private static void PaintGun(Texture2D tex)
+        {
+            TextureUtils.FillRect(tex, 1, 3, 5, 7, White);
+            TextureUtils.FillRect(tex, 5, 2, 12, 7, White);
+            TextureUtils.FillRect(tex, 12, 3, 19, 5, White);
+            TextureUtils.FillRect(tex, 8, 7, 11, 9, White);
+            TextureUtils.FillRect(tex, 10, 1, 12, 2, White);
+        }
+
+        private static void PaintPistol(Texture2D tex)
+        {
+            TextureUtils.FillRect(tex, 2, 2, 10, 5, White);
+            TextureUtils.FillRect(tex, 2, 5, 6, 9, White);
+            TextureUtils.FillRect(tex, 6, 5, 8, 6, White);
+        }
+
+        private static void PaintArmor(Texture2D tex)
+        {
+            TextureUtils.FillRect(tex, 2, 2, 9, 12, White);
+            TextureUtils.FillRect(tex, 1, 3, 2, 6, White);
+            TextureUtils.FillRect(tex, 9, 3, 10, 6, White);
+            TextureUtils.FillRect(tex, 4, 0, 7, 2, White);
+        }
+
+        private static void PaintHelmet(Texture2D tex)
+        {
+            TextureUtils.FillRect(tex, 2, 3, 9, 8, White);
+            TextureUtils.FillRect(tex, 3, 1, 8, 3, White);
+            TextureUtils.FillRect(tex, 1, 7, 10, 8, White);
+            TextureUtils.FillRect(tex, 4, 8, 7, 9, White);
+        }
+
+        private static void PaintVest(Texture2D tex)
+        {
+            TextureUtils.FillRect(tex, 1, 1, 4, 12, White);
+            TextureUtils.FillRect(tex, 7, 1, 10, 12, White);
+            TextureUtils.FillRect(tex, 4, 2, 7, 4, White);
+            TextureUtils.FillRect(tex, 4, 10, 7, 12, White);
+            TextureUtils.FillRect(tex, 2, 0, 3, 2, White);
+            TextureUtils.FillRect(tex, 8, 0, 9, 2, White);
+        }
+
+        private static void PaintBag(Texture2D tex)
+        {
+            TextureUtils.FillRect(tex, 2, 2, 9, 11, White);
+            TextureUtils.FillRect(tex, 3, 0, 8, 2, White);
+            TextureUtils.FillRect(tex, 1, 4, 2, 9, White);
+            TextureUtils.FillRect(tex, 9, 4, 10, 9, White);
+        }
+
+        private static void PaintSquare(Texture2D tex)
+        {
+            TextureUtils.FillRect(tex, 0, 0, tex.width - 1, tex.height - 1, White);
         }
 
         private void EnsureSubscribed(LootableContainer container)

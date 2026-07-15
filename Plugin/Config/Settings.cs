@@ -474,7 +474,7 @@ namespace DynamicMaps.Config
                 "Show Container Misc Loot In Raid",
                 true,
                 new ConfigDescription(
-                    "Mark containers that only have misc loot (no weapon/armor/vest/bag) — muted color",
+                    "Gray box on containers that have loot but no weapon/armor/vest/bag. Clears when emptied.",
                     null,
                     new ConfigurationManagerAttributes { })));
 
@@ -904,7 +904,7 @@ namespace DynamicMaps.Config
                 "Killed corpse marker color",
                 new Color(1f, 0.0f, 0.0f),
                 new ConfigDescription(
-                    "Color of the marker",
+                    "Legacy — skulls now use Bear/USEC/Scav/Boss live-marker colors by corpse type",
                     null,
                     new ConfigurationManagerAttributes { })));
 
@@ -913,7 +913,7 @@ namespace DynamicMaps.Config
                 "Killed boss corpse marker color",
                 new Color(1f, 0.0f, 1.0f),
                 new ConfigDescription(
-                    "Color of the marker",
+                    "Legacy — boss skulls use Boss marker color",
                     null,
                     new ConfigurationManagerAttributes { })));
             
@@ -922,7 +922,7 @@ namespace DynamicMaps.Config
                 "Killed by other corpse marker color",
                 new Color(1f, 1f, 1f),
                 new ConfigDescription(
-                    "Color of the marker",
+                    "Skull color when corpse type is unknown (not PMC/scav/boss)",
                     null,
                     new ConfigurationManagerAttributes { })));
             
