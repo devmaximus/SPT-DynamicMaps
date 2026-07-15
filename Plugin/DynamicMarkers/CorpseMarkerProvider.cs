@@ -15,10 +15,8 @@ namespace DynamicMaps.DynamicMarkers
     {
         private const string _skullImagePath = "Markers/skull.png";
 
-        // TODO: move to config
         private const string _friendlyCorpseCategory = "Friendly Corpse";
         private const string _friendlyCorpseImagePath = _skullImagePath;
-        private static Color _friendlyCorpseColor = Color.Lerp(Color.blue, Color.white, 0.5f);
 
         private const string _killedCorpseCategory = "Killed Corpse";
         private const string _killedCorpseImagePath = _skullImagePath;
@@ -31,15 +29,12 @@ namespace DynamicMaps.DynamicMarkers
 
         private const string _friendlyKilledCorpseCategory = "Friendly Killed Corpse";
         private const string _friendlyKilledCorpseImagePath = _skullImagePath;
-        private static Color _friendlyKilledCorpseColor = Color.Lerp(Color.Lerp(Color.blue, Color.white, 0.5f), Color.red, 0.5f);
 
         private const string _friendlyKilledBossCorpseCategory = "Friendly Killed Boss Corpse";
         private const string _friendlyKilledBossCorpseImagePath = _skullImagePath;
 
         private const string _otherCorpseCategory = "Other Corpse";
         private const string _otherCorpseImagePath = _skullImagePath;
-        //
-
         private bool _showFriendlyCorpses = true;
         public bool ShowFriendlyCorpses
         {
@@ -225,52 +220,47 @@ namespace DynamicMaps.DynamicMarkers
             
             if (Settings.ShowCorpseIntelLevel.Value > intelLevel) return;
             
-            // set category and color
+            // Category = who-killed / visibility buckets. Color = corpse type (PMC / scav / boss).
             var category = _otherCorpseCategory;
             var imagePath = _otherCorpseImagePath;
-            var color = Settings.KilledOtherColor.Value;
-            
+
             if (player.IsGroupedWithMainPlayer())
             {
                 category = _friendlyCorpseCategory;
                 imagePath = _friendlyCorpseImagePath;
-                color = _friendlyCorpseColor;
             }
             else if (player.IsTrackedBoss() && player.DidMainPlayerKill())
             {
                 category = _killedBossCorpseCategory;
                 imagePath = _killedBossCorpseImagePath;
-                color = Settings.KilledBossColor.Value;
             }
             else if (player.DidMainPlayerKill())
             {
                 category = _killedCorpseCategory;
                 imagePath = _killedCorpseImagePath;
-                color = Settings.KilledCorpseColor.Value;
             }
             else if (player.IsTrackedBoss() && player.DidTeammateKill())
             {
                 category = _friendlyKilledBossCorpseCategory;
                 imagePath = _friendlyKilledBossCorpseImagePath;
-                color = Settings.KilledBossColor.Value;
             }
             else if (player.DidTeammateKill())
             {
                 category = _friendlyKilledCorpseCategory;
                 imagePath = _friendlyKilledCorpseImagePath;
-                color = _friendlyKilledCorpseColor;
             }
             else if (player.IsTrackedBoss())
             {
                 category = _bossCorpseCategory;
                 imagePath = _bossCorpseImagePath;
-                color = Settings.KilledBossColor.Value;
             }
 
             if (!ShouldShowCategory(category))
             {
                 return;
             }
+
+            var color = ResolveCorpseTypeColor(player);
 
             var markerDef = new MapMarkerDef
             {
@@ -284,6 +274,30 @@ namespace DynamicMaps.DynamicMarkers
             // try adding marker
             var marker = _lastMapView.AddMapMarker(markerDef);
             _corpseMarkers[player] = marker;
+        }
+
+        /// <summary>Skull tint by corpse identity — boss, PMC (Bear/USEC), or scav.</summary>
+        private static Color ResolveCorpseTypeColor(Player player)
+        {
+            if (player.IsTrackedBoss() || player.IsBossSupport())
+            {
+                return Settings.BossColor.Value;
+            }
+
+            if (player.IsPMC())
+            {
+                var isBear = player.Side == EPlayerSide.Bear
+                    || player.Profile?.Side == EPlayerSide.Bear
+                    || player.Profile?.Info?.Settings?.Role == WildSpawnType.pmcBEAR;
+                return isBear ? Settings.PmcBearColor.Value : Settings.PmcUsecColor.Value;
+            }
+
+            if (player.IsScav())
+            {
+                return Settings.ScavColor.Value;
+            }
+
+            return Settings.KilledOtherColor.Value;
         }
 
         private void RemoveDisabledMarkers()
