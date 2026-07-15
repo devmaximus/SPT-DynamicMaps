@@ -56,6 +56,7 @@ namespace DynamicMaps.Config
         public static ConfigEntry<bool> ShowContainerVestsInRaid;
         public static ConfigEntry<bool> ShowContainerBagsInRaid;
         public static ConfigEntry<bool> ShowContainerStuffInRaid;
+        public static ConfigEntry<bool> ShowBotAgroFlashInRaid;
         public static ConfigEntry<bool> ShowFriendlyCorpsesInRaid;
         public static ConfigEntry<bool> ShowKilledCorpsesInRaid;
         public static ConfigEntry<bool> ShowFriendlyKilledCorpsesInRaid;
@@ -142,6 +143,7 @@ namespace DynamicMaps.Config
         public static ConfigEntry<Color> ContainerVestColor;
         public static ConfigEntry<Color> ContainerBagColor;
         public static ConfigEntry<Color> ContainerStuffColor;
+        public static ConfigEntry<Color> BotAgroFlashColor;
         
         #endregion
         
@@ -331,6 +333,15 @@ namespace DynamicMaps.Config
                 true,
                 new ConfigDescription(
                     "If boss and boss-support markers should be shown in-raid (red / red-orange arrows)",
+                    null,
+                    new ConfigurationManagerAttributes { })));
+
+            ConfigEntries.Add(ShowBotAgroFlashInRaid = config.Bind(
+                DynamicMarkerTitle,
+                "Flash Bot Markers When Agro On You",
+                false,
+                new ConfigDescription(
+                    "Pulse AI arrows when that bot has you on its EFT enemy/threat list (EnemiesController). Off by default.",
                     null,
                     new ConfigurationManagerAttributes { })));
 
@@ -1058,6 +1069,15 @@ namespace DynamicMaps.Config
                 new Color(0.65f, 0.65f, 0.65f),
                 new ConfigDescription(
                     "Misc-only containers (no gear categories)",
+                    null,
+                    new ConfigurationManagerAttributes { })));
+
+            ConfigEntries.Add(BotAgroFlashColor = config.Bind(
+                MarkerColors,
+                "Bot agro flash color",
+                new Color(1f, 0.15f, 0.05f),
+                new ConfigDescription(
+                    "Pulse color when an AI marker has you on its threat list",
                     null,
                     new ConfigurationManagerAttributes { })));
             

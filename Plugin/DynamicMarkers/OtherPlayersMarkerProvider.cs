@@ -246,10 +246,18 @@ namespace DynamicMaps.DynamicMarkers
             }
 
             // Role/Side can finalize after OnPersonAdd — replace misclassified markers.
+            // Compare BaseColor (not flashing Color) so agro pulse does not rebuild markers.
             if (_playerMarkers.TryGetValue(player, out var existing)
                 && existing.Category == category
-                && existing.Color == color)
+                && existing.BaseColor == color)
             {
+                return;
+            }
+
+            if (_playerMarkers.TryGetValue(player, out var sameCat)
+                && sameCat.Category == category)
+            {
+                sameCat.SetBaseColor(color);
                 return;
             }
 
