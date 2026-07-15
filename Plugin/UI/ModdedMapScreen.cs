@@ -1097,7 +1097,7 @@ namespace DynamicMaps.UI
             }
         }
 
-        private T GetMarkerProvider<T>() where T : IDynamicMarkerProvider
+        public T TryGetMarkerProvider<T>() where T : IDynamicMarkerProvider
         {
             if (!_dynamicMarkerProviders.ContainsKey(typeof(T)))
             {
@@ -1105,6 +1105,11 @@ namespace DynamicMaps.UI
             }
 
             return (T)_dynamicMarkerProviders[typeof(T)];
+        }
+
+        private T GetMarkerProvider<T>() where T : IDynamicMarkerProvider
+        {
+            return TryGetMarkerProvider<T>();
         }
 
         #endregion
