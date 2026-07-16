@@ -98,9 +98,23 @@ namespace DynamicMaps.UI.Components
             }
 
             _wasAgro = true;
-            var t = Mathf.PingPong(Time.unscaledTime * AgroFlashHz, 1f);
-            var flashed = Color.Lerp(BaseColor, Settings.BotAgroFlashColor.Value, t);
-            ApplyDisplayedColor(flashed);
+            // Hard blink — soft Lerp(orange→red) was nearly invisible on PMC arrows.
+            var on = Mathf.PingPong(Time.unscaledTime * AgroFlashHz, 1f) > 0.45f;
+            var flash = Settings.BotAgroFlashColor.Value;
+            if (ColorDistanceSq(BaseColor, flash) < 0.08f)
+            {
+                flash = Color.white;
+            }
+
+            ApplyDisplayedColor(on ? flash : BaseColor);
+        }
+
+        private static float ColorDistanceSq(Color a, Color b)
+        {
+            var dr = a.r - b.r;
+            var dg = a.g - b.g;
+            var db = a.b - b.b;
+            return dr * dr + dg * dg + db * db;
         }
 
         private void ApplyDisplayedColor(Color rgb)

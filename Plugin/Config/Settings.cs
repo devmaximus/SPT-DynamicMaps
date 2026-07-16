@@ -339,9 +339,9 @@ namespace DynamicMaps.Config
             ConfigEntries.Add(ShowBotAgroFlashInRaid = config.Bind(
                 DynamicMarkerTitle,
                 "Flash Bot Markers When Agro On You",
-                false,
+                true,
                 new ConfigDescription(
-                    "Pulse AI arrows when that bot has you on its EFT enemy/threat list (EnemiesController). Off by default.",
+                    "Blink AI arrows when that bot has sensed/engaged you (EnemiesController HaveSeen/visible/shooting). Not all faction hostiles.",
                     null,
                     new ConfigurationManagerAttributes { })));
 
