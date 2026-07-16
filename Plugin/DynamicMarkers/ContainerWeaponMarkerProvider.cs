@@ -133,7 +133,7 @@ namespace DynamicMaps.DynamicMarkers
 
             if (container.ItemOwner?.RootItem == null)
             {
-                TryRestoreHiddenStash(container);
+                TryMarkHiddenStashEmptied(container);
                 return;
             }
 
@@ -144,7 +144,7 @@ namespace DynamicMaps.DynamicMarkers
 
             if (_hits.Count == 0)
             {
-                TryRestoreHiddenStash(container);
+                TryMarkHiddenStashEmptied(container);
                 return;
             }
 
@@ -398,10 +398,10 @@ namespace DynamicMaps.DynamicMarkers
                 ?.SuppressForContainer(container);
         }
 
-        private static void TryRestoreHiddenStash(LootableContainer container)
+        private static void TryMarkHiddenStashEmptied(LootableContainer container)
         {
             Plugin.Instance?.Map?.TryGetMarkerProvider<HiddenStashMarkerProvider>()
-                ?.TryRestoreForContainer(container);
+                ?.MarkEmptiedAndClear(container);
         }
 
         // Mid sizes — readable without covering map labels / other markers (default map pin is 30²).

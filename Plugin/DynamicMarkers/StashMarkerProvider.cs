@@ -7,6 +7,7 @@ using DynamicMaps.UI.Components;
 using DynamicMaps.Utils;
 using EFT.Interactive;
 using EFT.InventoryLogic;
+using UnityEngine;
 
 namespace DynamicMaps.DynamicMarkers;
 
@@ -14,9 +15,10 @@ public class HiddenStashMarkerProvider : IDynamicMarkerProvider
 {
     private MapView _lastMapView;
     private readonly Dictionary<LootableContainer, DynamicMaps.UI.Components.MapMarker> _stashMarkers = [];
+    private readonly HashSet<LootableContainer> _emptiedStashes = [];
     private readonly List<Item> _scanBuffer = new(32);
     private const string _hiddenCacheImagePath = "Markers/barrel.png";
-    private static readonly UnityEngine.Vector2 StashMarkerSize = new(14f, 14f);
+    private static readonly Vector2 StashMarkerSize = new(14f, 14f);
 
     public void OnShowInRaid(MapView map)
     {
@@ -36,6 +38,7 @@ public class HiddenStashMarkerProvider : IDynamicMarkerProvider
     public void OnRaidEnd(MapView map)
     {
         TryRemoveMarkers();
+        _emptiedStashes.Clear();
     }
 
     public void OnMapChanged(MapView map, MapDef mapDef)
@@ -65,22 +68,20 @@ public class HiddenStashMarkerProvider : IDynamicMarkerProvider
         }
     }
 
-    /// <summary>
-    /// Hide barrel when container gear markers take priority (same transform).
-    /// </summary>
+    /// <summary>Hide barrel when a content pin (gear or gray box) is shown on the same container.</summary>
     public void SuppressForContainer(LootableContainer container)
     {
         TryRemoveMarker(container);
     }
 
     /// <summary>
-    /// Re-show barrel after gear markers are cleared (if still a tracked hidden stash).
+    /// Container was emptied / has no content pin — never show barrel again this raid.
     /// </summary>
-    public void TryRestoreForContainer(LootableContainer container)
+    public void MarkEmptiedAndClear(LootableContainer container)
     {
         if (container == null) return;
-        if (!GameStartedPatch.HiddenStashes.Contains(container)) return;
-        TryAddMarker(container);
+        _emptiedStashes.Add(container);
+        TryRemoveMarker(container);
     }
 
     private void TryAddMarker(LootableContainer stash)
@@ -88,9 +89,10 @@ public class HiddenStashMarkerProvider : IDynamicMarkerProvider
         if (_stashMarkers.ContainsKey(stash)) return;
         if (_lastMapView == null) return;
         if (Settings.ShowHiddenStashIntelLevel.Value > GameUtils.GetIntelLevel()) return;
+        if (_emptiedStashes.Contains(stash)) return;
 
-        // Gear icons take priority over barrel when both would sit on the same container.
-        if (ContainerHasPriorityGear(stash))
+        // Content pin (weapon/armor/vest/bag/misc box) wins — never barrel+box together.
+        if (ContainerHasContentPin(stash))
         {
             return;
         }
@@ -110,31 +112,43 @@ public class HiddenStashMarkerProvider : IDynamicMarkerProvider
         _stashMarkers[stash] = marker;
     }
 
-    private bool ContainerHasPriorityGear(LootableContainer stash)
+    /// <summary>
+    /// True when ContainerWeaponMarkerProvider would place any pin (including gray misc box).
+    /// </summary>
+    private bool ContainerHasContentPin(LootableContainer stash)
     {
-        var wantWeapons = Settings.ShowContainerWeaponsInRaid.Value;
-        var wantArmor = Settings.ShowContainerArmorInRaid.Value;
-        if (!wantWeapons && !wantArmor) return false;
         if (stash?.ItemOwner?.RootItem == null) return false;
 
-        _scanBuffer.Clear();
-        stash.ItemOwner.RootItem.GetAllAssembledItemsNonAlloc(_scanBuffer);
+        var wantWeapons = Settings.ShowContainerWeaponsInRaid.Value;
+        var wantArmor = Settings.ShowContainerArmorInRaid.Value;
+        var wantVests = Settings.ShowContainerVestsInRaid.Value;
+        var wantBags = Settings.ShowContainerBagsInRaid.Value;
+        var wantStuff = Settings.ShowContainerStuffInRaid.Value;
+        if (!wantWeapons && !wantArmor && !wantVests && !wantBags && !wantStuff)
+        {
+            return false;
+        }
 
+        var root = stash.ItemOwner.RootItem;
+        _scanBuffer.Clear();
+        root.GetAllAssembledItemsNonAlloc(_scanBuffer);
+
+        var hasAnyLoot = false;
         for (var i = 0; i < _scanBuffer.Count; i++)
         {
             var item = _scanBuffer[i];
-            if (wantWeapons && item is Weapon)
-            {
-                return true;
-            }
+            if (item == null || ReferenceEquals(item, root)) continue;
 
-            if (wantArmor && IsArmor(item))
-            {
-                return true;
-            }
+            hasAnyLoot = true;
+
+            if (wantWeapons && item is Weapon) return true;
+            if (wantArmor && IsArmor(item)) return true;
+            if (wantVests && item is VestItemClass) return true;
+            if (wantBags && (item is BackpackItemClass)) return true;
         }
 
-        return false;
+        // Misc gray box covers any remaining loot when gear categories are empty.
+        return wantStuff && hasAnyLoot;
     }
 
     private static bool IsArmor(Item item)
