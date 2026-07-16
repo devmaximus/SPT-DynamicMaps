@@ -160,7 +160,8 @@ namespace DynamicMaps.DynamicMarkers
                 var hit = _hits[i];
                 var pos = FanPosition(basePos, i, _hits.Count);
                 var marker = AddContentMarker(hit.Item, hit.Category, hit.Color, pos, hit.Label);
-                marker.transform.SetAsLastSibling();
+                // Under bots/exfils so gear pins don't bury combat/extract UI.
+                marker.transform.SetAsFirstSibling();
                 list.Add(marker);
             }
 
@@ -403,14 +404,14 @@ namespace DynamicMaps.DynamicMarkers
                 ?.TryRestoreForContainer(container);
         }
 
-        // UI sizes — map default markers are 30x30; keep gear readable at zoom.
-        private static readonly Vector2 SizeGun = new Vector2(32f, 18f);
-        private static readonly Vector2 SizePistol = new Vector2(22f, 18f);
-        private static readonly Vector2 SizeArmor = new Vector2(22f, 26f);
-        private static readonly Vector2 SizeHelmet = new Vector2(22f, 18f);
-        private static readonly Vector2 SizeVest = new Vector2(22f, 26f);
-        private static readonly Vector2 SizeBag = new Vector2(24f, 24f);
-        private static readonly Vector2 SizeStuff = new Vector2(16f, 16f);
+        // Mid sizes — readable without covering map labels / other markers (default map pin is 30²).
+        private static readonly Vector2 SizeGun = new Vector2(20f, 11f);
+        private static readonly Vector2 SizePistol = new Vector2(14f, 12f);
+        private static readonly Vector2 SizeArmor = new Vector2(14f, 16f);
+        private static readonly Vector2 SizeHelmet = new Vector2(14f, 12f);
+        private static readonly Vector2 SizeVest = new Vector2(14f, 16f);
+        private static readonly Vector2 SizeBag = new Vector2(14f, 14f);
+        private static readonly Vector2 SizeStuff = new Vector2(10f, 10f);
         private static readonly Color32 White = new Color32(255, 255, 255, 255);
 
         private DynamicMaps.UI.Components.MapMarker AddContentMarker(Item item, string category, Color color, Vector3 mapPosition, string label)

@@ -16,6 +16,7 @@ public class HiddenStashMarkerProvider : IDynamicMarkerProvider
     private readonly Dictionary<LootableContainer, DynamicMaps.UI.Components.MapMarker> _stashMarkers = [];
     private readonly List<Item> _scanBuffer = new(32);
     private const string _hiddenCacheImagePath = "Markers/barrel.png";
+    private static readonly UnityEngine.Vector2 StashMarkerSize = new(14f, 14f);
 
     public void OnShowInRaid(MapView map)
     {
@@ -104,6 +105,8 @@ public class HiddenStashMarkerProvider : IDynamicMarkerProvider
         };
 
         var marker = _lastMapView.AddMapMarker(markerDef);
+        marker.Size = StashMarkerSize;
+        marker.transform.SetAsFirstSibling();
         _stashMarkers[stash] = marker;
     }
 
