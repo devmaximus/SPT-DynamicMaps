@@ -68,7 +68,7 @@ public class HiddenStashMarkerProvider : IDynamicMarkerProvider
         }
     }
 
-    /// <summary>Hide barrel when a content pin (gear or gray box) is shown on the same container.</summary>
+    /// <summary>Hide barrel when a content pin (gear or misc box) is shown on the same container.</summary>
     public void SuppressForContainer(LootableContainer container)
     {
         TryRemoveMarker(container);
@@ -147,7 +147,7 @@ public class HiddenStashMarkerProvider : IDynamicMarkerProvider
             if (wantBags && (item is BackpackItemClass)) return true;
         }
 
-        // Misc gray box covers any remaining loot when gear categories are empty.
+        // Misc box covers any remaining loot when gear categories are empty.
         return wantStuff && hasAnyLoot;
     }
 

@@ -485,7 +485,7 @@ namespace DynamicMaps.Config
                 "Show Container Misc Loot In Raid",
                 true,
                 new ConfigDescription(
-                    "Gray box on containers that have loot but no weapon/armor/vest/bag. Clears when emptied.",
+                    "Misc box on containers that have loot but no weapon/armor/vest/bag. Clears when emptied.",
                     null,
                     new ConfigurationManagerAttributes { })));
 
@@ -1063,12 +1063,13 @@ namespace DynamicMaps.Config
                     null,
                     new ConfigurationManagerAttributes { })));
 
+            // Neon magenta — mid-gray blended into Interchange mall floors.
             ConfigEntries.Add(ContainerStuffColor = config.Bind(
                 MarkerColors,
                 "Container misc-loot marker color",
-                new Color(0.65f, 0.65f, 0.65f),
+                new Color(1f, 0.2f, 0.85f),
                 new ConfigDescription(
-                    "Misc-only containers (no gear categories)",
+                    "Misc-only containers (no gear categories). Neon magenta for contrast on gray map art.",
                     null,
                     new ConfigurationManagerAttributes { })));
 

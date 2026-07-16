@@ -324,7 +324,7 @@ namespace DynamicMaps.DynamicMarkers
                 });
             }
 
-            // Gray box for any remaining contents when no weapon/armor/vest/bag pin.
+            // Misc box for any remaining contents when no weapon/armor/vest/bag pin.
             // Empty crates (root only) must produce zero hits.
             var hasGearHit = hits.Count > 0;
             if (wantStuff && !hasGearHit && hasAnyLoot)
