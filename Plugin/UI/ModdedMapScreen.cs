@@ -593,6 +593,7 @@ namespace DynamicMaps.UI
 
         private void OnShowInRaid(bool playAnimation)
         {
+            Vector2? fitMaskSize = null;
             if (_showingMiniMap)
             {
                 AdjustForMiniMap(playAnimation);
@@ -600,10 +601,12 @@ namespace DynamicMaps.UI
             else if (_isPeeking)
             {
                 AdjustForPeek(playAnimation);
+                fitMaskSize = RectTransform.sizeDelta;
             }
             else
             {
                 AdjustForInRaid(playAnimation);
+                fitMaskSize = RectTransform.sizeDelta + _maskSizeModifierInRaid;
             }
             
             // filter dropdown to only maps containing the internal map name
@@ -640,37 +643,27 @@ namespace DynamicMaps.UI
                 _mapView.SelectLevelByCoords(mapPosition);
             }
 
-            // Don't set the map position if we're the mini-map, otherwise it can cause artifacting
-            if (_rememberMapPosition && !_showingMiniMap && _mapView.MainMapPos != Vector2.zero)
+            // Mini-map keeps its own zoom; full/peek always fit the whole map to the mask.
+            if (_showingMiniMap)
             {
-                _mapView.ApplyMainMapZoom();
-    
-                var tweenTime = _transitionAnimations && _mapView.MainMapPos != _savedMainMapPos ? 0.35f : 0f;
+                return;
+            }
+
+            _mapView.FitMainMapToMask(fitMaskSize, centerOnMidpoint: true);
+
+            if (_rememberMapPosition && _savedMainMapPos != Vector2.zero)
+            {
+                var tweenTime = _transitionAnimations ? 0.35f : 0f;
                 _mapView.SetMapPos(_savedMainMapPos, tweenTime);
+                _mapView.ClampToMapBounds();
                 return;
             }
-            
-            if (!_rememberMapPosition && !_autoCenterOnPlayerMarker && !_showingMiniMap)
+
+            if (_autoCenterOnPlayerMarker)
             {
-                _mapView.ApplyMainMapZoom();
-                _mapView.SetMapZoom(_mapView.ZoomMin, 0f);
-                var midpoint = MathUtils.GetMidpoint(_mapView.CurrentMapDef.Bounds.Min, _mapView.CurrentMapDef.Bounds.Max);
-                _mapView.ShiftMapToCoordinate(midpoint, 0f, false);
-                return;
-            }
-            
-            // Auto centering while the minimap is active here can cause artifacting
-            if (_autoCenterOnPlayerMarker && !_showingMiniMap)
-            {
-                // Reset the zoom level
-                _mapView.ApplyMainMapZoom();
-                if (_resetZoomOnCenter && !_showingMiniMap)
-                {
-                    // change zoom to desired level
-                    _mapView.SetMapZoom(GetInRaidStartingZoom(), 0);
-                }
-                // shift map to player position, Vector3 to Vector2 discards z
+                // Stay at fit zoom — do not zoom in (would crop tall maps like Ground Zero).
                 _mapView.ShiftMapToPlayer(mapPosition, 0, false);
+                _mapView.ClampToMapBounds();
             }
         }
 
@@ -702,6 +695,12 @@ namespace DynamicMaps.UI
             if (_mapView.CurrentMapDef == null)
             {
                 _mapSelectDropdown.LoadFirstAvailableMap();
+            }
+
+            if (_mapView.CurrentMapDef != null)
+            {
+                var outOfRaidMask = RectTransform.sizeDelta + _maskSizeModifierOutOfRaid;
+                _mapView.FitMainMapToMask(outOfRaidMask, centerOnMidpoint: true);
             }
 
             foreach (var dynamicProvider in _dynamicMarkerProviders.Values)

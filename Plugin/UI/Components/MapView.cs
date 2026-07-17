@@ -15,7 +15,8 @@ namespace DynamicMaps.UI.Components
     {
         private static Vector2 _markerSize = new Vector2(30, 30);
         private static float _zoomMaxScaler = 10f;  // multiplier against zoomMin
-        private static float _zoomMinScaler = 1.1f; // divider against ratio of a provided rect
+        /// <summary>Divider on fit ratio. 1 = exact fit; &gt;1 slightly more zoomed-out margin.</summary>
+        private static float _zoomMinScaler = 1.02f;
 
         public event Action<int> OnLevelSelected;
 
@@ -365,23 +366,73 @@ namespace DynamicMaps.UI.Components
         
         public void SetMinMaxZoom(RectTransform parentTransform)
         {
-            // set zoom min and max based on size of map and size of mask
+            SetMinMaxZoom(parentTransform, maskSizeOverride: null, centerOnMidpoint: true);
+        }
+
+        /// <summary>
+        /// Recalculate ZoomMin/Max so the full map fits inside the mask, apply ZoomMin to main map, center.
+        /// </summary>
+        public void FitMainMapToMask(Vector2? maskSizeOverride = null, bool centerOnMidpoint = true)
+        {
+            if (_maskTransform == null || CurrentMapDef == null)
+            {
+                return;
+            }
+
+            SetMinMaxZoom(_maskTransform, maskSizeOverride, centerOnMidpoint);
+        }
+
+        public void SetMinMaxZoom(RectTransform parentTransform, Vector2? maskSizeOverride, bool centerOnMidpoint)
+        {
+            if (parentTransform == null || CurrentMapDef == null)
+            {
+                return;
+            }
+
             var mapSize = RectTransform.sizeDelta;
-            ZoomMin = Mathf.Min(parentTransform.sizeDelta.x / mapSize.x, parentTransform.sizeDelta.y / mapSize.y) / _zoomMinScaler;
+            if (mapSize.x < 1f || mapSize.y < 1f)
+            {
+                return;
+            }
+
+            // Prefer rect.size — sizeDelta is unreliable with stretch anchors / mid-layout.
+            var maskSize = maskSizeOverride ?? ReadMaskSize(parentTransform);
+            if (maskSize.x < 1f || maskSize.y < 1f)
+            {
+                return;
+            }
+
+            // Min(...) = contain (entire map visible). Scaler adds a small letterbox margin.
+            ZoomMin = Mathf.Min(maskSize.x / mapSize.x, maskSize.y / mapSize.y) / _zoomMinScaler;
             ZoomMax = _zoomMaxScaler * ZoomMin;
 
-            // this will set everything up for initial zoom - mini comes from the settings on load, main needs to be minimum so the user can change it
             ZoomMain = ZoomMin;
             ZoomMini = NormalizedToActual(Settings.ZoomMiniMap.Value);
-            
+
             ApplyZoom(ZoomCurrent, 0f);
 
-            // shift map to center it
-            // FIXME: this doesn't center in the parent
             RectTransform.anchoredPosition = Vector2.zero;
+            _immediateMapAnchor = Vector2.zero;
+            MainMapPos = Vector2.zero;
 
-            var midpoint = MathUtils.GetMidpoint(CurrentMapDef.Bounds.Min, CurrentMapDef.Bounds.Max);
-            ShiftMapToCoordinate(midpoint, 0, false);
+            if (centerOnMidpoint)
+            {
+                var midpoint = MathUtils.GetMidpoint(CurrentMapDef.Bounds.Min, CurrentMapDef.Bounds.Max);
+                ShiftMapToCoordinate(midpoint, 0, false);
+            }
+
+            ClampToMapBounds();
+        }
+
+        private static Vector2 ReadMaskSize(RectTransform mask)
+        {
+            var size = mask.rect.size;
+            if (size.x < 1f || size.y < 1f)
+            {
+                size = mask.sizeDelta;
+            }
+
+            return new Vector2(Mathf.Abs(size.x), Mathf.Abs(size.y));
         }
 
         public void SetMapZoom(float zoomNew, float tweenTime, bool updateMainZoom = true, bool updateMiniZoom = false)
