@@ -741,7 +741,8 @@ namespace DynamicMaps.UI
         
         private void OnScroll(float scrollAmount)
         {
-            if (_isPeeking || _showingMiniMap)
+            // Mini-map: leave wheel alone so it doesn't fight gameplay scroll.
+            if (_showingMiniMap)
             {
                 return;
             }
@@ -759,7 +760,7 @@ namespace DynamicMaps.UI
                 return;
             }
 
-            // Initialize target zoom if not set
+            // Initialize target zoom if not set (peek + full map screen)
             if (_targetZoom == 0f)
             {
                 _targetZoom = _mapView.ZoomMain;
@@ -779,7 +780,7 @@ namespace DynamicMaps.UI
         private void OnScrollZoomUpdate()
         {
             // Return early if there's nothing to change, this is in Update
-            if (_targetZoom == 0f || _isPeeking || _showingMiniMap) 
+            if (_targetZoom == 0f || _showingMiniMap) 
                 return;
 
             var currentZoom = _mapView.ZoomMain;
